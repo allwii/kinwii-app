@@ -104,6 +104,22 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
   Future<void> refresh() => _load();
 }
 
+// Daily focus suggestions provider
+final _dailyFocusProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>?, String>((ref, weeklyPlanId) async {
+  final api = ref.read(apiServiceProvider);
+  try {
+    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final response = await api.post('/ai/suggest-daily-focus', data: {
+      'weekly_plan_id': weeklyPlanId,
+      'date': dateStr,
+    });
+    return response.data as Map<String, dynamic>;
+  } catch (_) {
+    return null;
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
@@ -153,6 +169,19 @@ class TodayScreen extends ConsumerWidget {
                     data: (plan) => plan == null
                         ? const _IntentCardSkeleton()
                         : _IntentCard(plan: plan),
+                  ),
+                ),
+              ),
+
+              // AI daily focus suggestions
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: weeklyPlanAsync.maybeWhen(
+                    data: (plan) => plan != null
+                        ? _DailyFocusCard(weeklyPlanId: plan.id)
+                        : const SizedBox.shrink(),
+                    orElse: () => const SizedBox.shrink(),
                   ),
                 ),
               ),
@@ -333,6 +362,140 @@ class _IntentCardSkeleton extends StatelessWidget {
           const ProgressBar(percent: 0),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily focus suggestions card
+// ---------------------------------------------------------------------------
+
+class _DailyFocusCard extends ConsumerStatefulWidget {
+  const _DailyFocusCard({required this.weeklyPlanId});
+
+  final String weeklyPlanId;
+
+  @override
+  ConsumerState<_DailyFocusCard> createState() => _DailyFocusCardState();
+}
+
+class _DailyFocusCardState extends ConsumerState<_DailyFocusCard> {
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissed) return const SizedBox.shrink();
+
+    final focusAsync = ref.watch(_dailyFocusProvider(widget.weeklyPlanId));
+
+    return focusAsync.when(
+      loading: () => KinwiiCard(
+        color: AppColors.kiwi50,
+        child: Row(
+          children: [
+            const SizedBox(
+              height: 16,
+              width: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.kiwi400,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Getting focus suggestions…',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.kiwi600,
+                  ),
+            ),
+          ],
+        ),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (data) {
+        if (data == null) return const SizedBox.shrink();
+        final suggestions = (data['suggestions'] as List<dynamic>?)
+                ?.cast<String>() ??
+            [];
+        final nudge = data['nudge'] as String?;
+        if (suggestions.isEmpty) return const SizedBox.shrink();
+
+        return KinwiiCard(
+          color: AppColors.kiwi50,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.auto_awesome,
+                    size: 16,
+                    color: AppColors.kiwi500,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Suggested focus',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppColors.kiwi600,
+                        ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setState(() => _dismissed = true),
+                    child: const Icon(
+                      Icons.close,
+                      size: 16,
+                      color: AppColors.contentTertiary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ...suggestions.map(
+                (s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Container(
+                          width: 5,
+                          height: 5,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.kiwi400,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          s,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.content,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (nudge != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  nudge,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.kiwi600,
+                        fontStyle: FontStyle.italic,
+                      ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

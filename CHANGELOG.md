@@ -6,6 +6,44 @@ Format: [category] description — files affected
 
 ---
 
+## 2026-02-25 — AI Features Wave 1
+
+### Added
+
+#### Bug Fix
+- [backend] `GET /tasks` now accepts optional `weekly_plan_id` query param (in addition to `date`) — `backend/app/api/routes_tasks.py`
+
+#### Feature A: Daily Focus Suggestions
+- [backend] `POST /ai/suggest-daily-focus` endpoint — returns 1-3 AI focus suggestions for today based on quarterly goal, weekly intent, tasks, and last week's recommendation — `backend/app/api/routes_ai.py`
+- [backend] `suggest_daily_focus()` method in AIService with calm morning coach prompt — `backend/app/services/ai_service.py`
+- [backend] `DailyFocusRequest/Response` schemas — `backend/app/schemas/ai.py`
+- [flutter] `_DailyFocusCard` widget on Today screen — kiwi50 background, sparkle icon, 1-3 bullet points, optional nudge, dismissable — `mobile/lib/features/today/presentation/screens/today_screen.dart`
+
+#### Feature B: Weekly Intent Suggestion
+- [backend] `POST /ai/suggest-intent` endpoint — suggests a weekly intent based on quarterly goal + last week's reflection — `backend/app/api/routes_ai.py`
+- [backend] `suggest_intent()` method in AIService — `backend/app/services/ai_service.py`
+- [backend] `SuggestIntentRequest/Response` schemas — `backend/app/schemas/ai.py`
+- [backend] `GET /week/previous` endpoint — returns the most recent week plan before current week — `backend/app/api/routes_week.py`
+- [flutter] "Suggest intent" chip on Week screen intent edit mode — calls AI, fills text field with suggestion — `mobile/lib/features/week/presentation/screens/week_screen.dart`
+
+#### Feature C: Enhanced Reflection with Pattern Tracking
+- [backend] Added `ai_pattern_insight` column to `weekly_reflections` table — `backend/app/models/reflection.py`
+- [backend] Alembic migration for new column — `backend/alembic/versions/f76fc44f0e59_add_ai_pattern_insight_to_reflections.py`
+- [backend] Enhanced `summarize_reflection()` — now fetches last 4 weeks of reflections + quarterly goal context for pattern detection — `backend/app/services/ai_service.py`
+- [backend] Updated `SummarizeReflectionResponse` with `pattern_insight` field — `backend/app/schemas/ai.py`, `backend/app/schemas/reflection.py`
+- [flutter] Added `aiPatternInsight` field to `WeeklyReflection` model — `mobile/lib/models/weekly_reflection.dart`
+- [flutter] "Pattern noticed" card (trending_up icon, kiwi50 background) in both `_AiResultView` and `_ReflectionReadOnly` — `mobile/lib/features/reflect/presentation/screens/reflect_screen.dart`
+
+#### Enriched Existing AI
+- [backend] `align_week()` now fetches quarterly goal context (title, why, progress, weeks remaining) for goal-aware suggestions — `backend/app/services/ai_service.py`
+
+### Changed
+- [backend] `align_week()` and `summarize_reflection()` signatures now accept `db: Session` parameter — `backend/app/services/ai_service.py`, `backend/app/api/routes_ai.py`
+- [docs] Updated PROJECTPLAN.md with AI features roadmap (Wave 1, 2, 3) — `PROJECTPLAN.md`
+- [backend] Route count: 27 → 30 (added 3 new endpoints)
+
+---
+
 ## 2026-02-22 — Initial MVP Build
 
 ### Added

@@ -16,16 +16,22 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 @router.get("", response_model=list[TaskResponse])
 async def list_tasks(
-    date: date = Query(...),
+    date: date | None = Query(None),
+    weekly_plan_id: UUID | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(Task)
-        .filter(Task.user_id == current_user.id, Task.date == date)
-        .order_by(Task.created_at)
-        .all()
-    )
+    if not date and not weekly_plan_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either 'date' or 'weekly_plan_id' query parameter",
+        )
+    query = db.query(Task).filter(Task.user_id == current_user.id)
+    if weekly_plan_id:
+        query = query.filter(Task.weekly_plan_id == weekly_plan_id)
+    if date:
+        query = query.filter(Task.date == date)
+    return query.order_by(Task.created_at).all()
 
 
 @router.post("", response_model=TaskResponse, status_code=201)

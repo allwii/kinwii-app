@@ -215,6 +215,52 @@ class _ReflectionReadOnly extends StatelessWidget {
           ),
         ],
 
+        // AI pattern insight
+        if (reflection.aiPatternInsight != null) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              child: KinwiiCard(
+                color: AppColors.kiwi50,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.trending_up,
+                      size: 18,
+                      color: AppColors.kiwi500,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pattern noticed',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(color: AppColors.kiwi600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            reflection.aiPatternInsight!,
+                            style:
+                                Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: AppColors.content,
+                                      height: 1.5,
+                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+
         // Answer cards
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
@@ -285,6 +331,7 @@ class _ReflectionFormState extends ConsumerState<_ReflectionForm>
   // Post-AI state
   String? _aiSummary;
   String? _aiFocusRecommendation;
+  String? _aiPatternInsight;
   late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
 
@@ -359,6 +406,8 @@ class _ReflectionFormState extends ConsumerState<_ReflectionForm>
         _aiSummary = aiResponse.data['summary'] as String?;
         _aiFocusRecommendation =
             aiResponse.data['focus_recommendation'] as String?;
+        _aiPatternInsight =
+            aiResponse.data['pattern_insight'] as String?;
       });
       _fadeController.forward();
 
@@ -381,6 +430,7 @@ class _ReflectionFormState extends ConsumerState<_ReflectionForm>
       return _AiResultView(
         summary: _aiSummary!,
         focusRecommendation: _aiFocusRecommendation,
+        patternInsight: _aiPatternInsight,
         fadeAnimation: _fadeAnimation,
       );
     }
@@ -547,11 +597,13 @@ class _AiResultView extends StatelessWidget {
   const _AiResultView({
     required this.summary,
     required this.focusRecommendation,
+    this.patternInsight,
     required this.fadeAnimation,
   });
 
   final String summary;
   final String? focusRecommendation;
+  final String? patternInsight;
   final Animation<double> fadeAnimation;
 
   @override
@@ -648,6 +700,55 @@ class _AiResultView extends StatelessWidget {
                                 .textTheme
                                 .bodyMedium
                                 ?.copyWith(color: AppColors.content),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Pattern insight (shows after 3+ weeks of reflections)
+            if (patternInsight != null) ...[
+              const SizedBox(height: 12),
+              KinwiiCard(
+                color: AppColors.kiwi50,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.trending_up,
+                        size: 18,
+                        color: AppColors.kiwi500,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pattern noticed',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: AppColors.kiwi600,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            patternInsight!,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.content,
+                                  height: 1.5,
+                                ),
                           ),
                         ],
                       ),

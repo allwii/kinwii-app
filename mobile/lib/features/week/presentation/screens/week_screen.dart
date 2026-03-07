@@ -112,12 +112,41 @@ class WeekScreen extends ConsumerStatefulWidget {
 
 class _WeekScreenState extends ConsumerState<WeekScreen> {
   bool _editingIntent = false;
+  bool _suggestingIntent = false;
   final _intentController = TextEditingController();
 
   @override
   void dispose() {
     _intentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _suggestIntent(WeeklyPlan plan) async {
+    if (plan.quarterId == null) return;
+    setState(() => _suggestingIntent = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      String? previousPlanId;
+      try {
+        final prevResponse = await api.get('/week/previous');
+        previousPlanId = prevResponse.data['id'] as String?;
+      } catch (_) {}
+      final response = await api.post('/ai/suggest-intent', data: {
+        'goal_id': plan.quarterId,
+        if (previousPlanId != null) 'previous_plan_id': previousPlanId,
+      });
+      final suggested = response.data['suggested_intent'] as String?;
+      if (suggested != null && mounted) {
+        _intentController.text = suggested;
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not get suggestion.')),
+        );
+      }
+    }
+    if (mounted) setState(() => _suggestingIntent = false);
   }
 
   Future<void> _saveIntent(WeeklyPlan plan) async {
@@ -207,6 +236,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                         : _IntentCard(
                             plan: plan,
                             isEditing: _editingIntent,
+                            isSuggestingIntent: _suggestingIntent,
                             intentController: _intentController,
                             onEditTap: () {
                               _intentController.text = plan.intent;
@@ -215,6 +245,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                             onSave: () => _saveIntent(plan),
                             onCancel: () =>
                                 setState(() => _editingIntent = false),
+                            onSuggestIntent: () => _suggestIntent(plan),
                           ),
                   ),
                 ),
@@ -334,18 +365,22 @@ class _IntentCard extends StatelessWidget {
   const _IntentCard({
     required this.plan,
     required this.isEditing,
+    required this.isSuggestingIntent,
     required this.intentController,
     required this.onEditTap,
     required this.onSave,
     required this.onCancel,
+    required this.onSuggestIntent,
   });
 
   final WeeklyPlan plan;
   final bool isEditing;
+  final bool isSuggestingIntent;
   final TextEditingController intentController;
   final VoidCallback onEditTap;
   final VoidCallback onSave;
   final VoidCallback onCancel;
+  final VoidCallback onSuggestIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -388,6 +423,51 @@ class _IntentCard extends StatelessWidget {
                 fillColor: Colors.white,
               ),
             ),
+            if (plan.quarterId != null) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: isSuggestingIntent ? null : onSuggestIntent,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.kiwi300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSuggestingIntent)
+                        const SizedBox(
+                          height: 12,
+                          width: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: AppColors.kiwi500,
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.auto_awesome,
+                          size: 14,
+                          color: AppColors.kiwi500,
+                        ),
+                      const SizedBox(width: 5),
+                      Text(
+                        isSuggestingIntent
+                            ? 'Suggesting…'
+                            : 'Suggest intent',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.kiwi600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

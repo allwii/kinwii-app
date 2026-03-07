@@ -148,17 +148,51 @@ Navigation: 4-tab bottom bar (Today, Week, Goals, Reflect)
 - Auto-selects current quarter
 - Creates goal + week plan on completion
 
-### Phase 9: Local Caching (Hive)
+### Phase 9: AI Features — Wave 1 ✅
+
+Bug fix:
+- [x] Add `weekly_plan_id` query param to `GET /tasks` (Week screen needs it)
+
+Feature A — Daily Focus Suggestions:
+- [x] Backend: `POST /ai/suggest-daily-focus` endpoint
+- [x] Backend: `suggest_daily_focus()` in AIService (gathers goal, intent, tasks, last week's recommendation)
+- [x] Flutter: `_DailyFocusCard` on Today screen (kiwi50 background, 1-3 bullet points, dismissable)
+
+Feature B — Weekly Intent Suggestion:
+- [x] Backend: `POST /ai/suggest-intent` endpoint
+- [x] Backend: `suggest_intent()` in AIService (uses goal + last week's reflection)
+- [x] Backend: `GET /week/previous` helper endpoint
+- [x] Flutter: "Suggest intent" chip on Week screen (edit mode)
+- [ ] Flutter: "Suggest intent" chip on Onboarding Step 4 (deferred — goal not yet created at Step 4)
+
+Feature C — Enhanced Reflection with Pattern Tracking:
+- [x] Backend: Add `ai_pattern_insight` column to `weekly_reflections` table (new migration)
+- [x] Backend: Enrich `summarize_reflection()` to fetch last 4 weeks + detect patterns
+- [x] Flutter: Add `aiPatternInsight` to WeeklyReflection model
+- [x] Flutter: Add "Pattern noticed" card in Reflect screen AI result view
+
+Bonus — Enrich existing AI:
+- [x] Upgrade `align_week()` prompt with quarterly goal context (title + why + progress + weeks remaining)
+
+### AI Features — Wave 2 (Planned)
+- [ ] Goal Pulse Check — "How am I tracking?" on Goal Detail screen
+- [ ] Task Categorization — "Moves the needle" vs "Keeps things running" tagging
+
+### AI Features — Wave 3 (Planned)
+- [ ] Smart Task Scheduling — AI-suggested optimal day placement
+- [ ] End-of-Quarter Review — Full quarter synthesis
+
+### Phase 10: Local Caching (Hive)
 - [ ] StorageService with Hive boxes
 - [ ] Stale-while-revalidate pattern
 - [ ] Offline Today screen support
 
-### Phase 10: Firebase Cloud Messaging
+### Phase 11: Firebase Cloud Messaging
 - [ ] FCM setup (google-services.json, Info.plist)
 - [ ] NotificationService scaffold
 - [ ] FCM token storage endpoint
 
-### Phase 11: Polish & Testing
+### Phase 12: Polish & Testing
 - [ ] Backend pytest suite (auth, CRUD, ownership, AI mocks)
 - [ ] Flutter unit + widget tests
 - [ ] Animations, loading states, error states

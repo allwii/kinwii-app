@@ -28,6 +28,7 @@ class WeeklyReflection(Base):
     focus_next_week = Column(Text)
     ai_summary = Column(Text)
     ai_focus_recommendation = Column(Text)
+    ai_pattern_insight = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="reflections")

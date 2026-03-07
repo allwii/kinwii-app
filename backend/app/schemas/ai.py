@@ -1,3 +1,4 @@
+import datetime as dt
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -18,3 +19,23 @@ class SummarizeReflectionRequest(BaseModel):
 class SummarizeReflectionResponse(BaseModel):
     summary: str
     focus_recommendation: str
+    pattern_insight: str | None = None
+
+
+class DailyFocusRequest(BaseModel):
+    weekly_plan_id: UUID
+    date: dt.date
+
+
+class DailyFocusResponse(BaseModel):
+    suggestions: list[str]
+    nudge: str | None = None
+
+
+class SuggestIntentRequest(BaseModel):
+    goal_id: UUID
+    previous_plan_id: UUID | None = None
+
+
+class SuggestIntentResponse(BaseModel):
+    suggested_intent: str

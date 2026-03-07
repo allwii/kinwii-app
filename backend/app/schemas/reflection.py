@@ -29,6 +29,7 @@ class ReflectionResponse(BaseModel):
     focus_next_week: str | None
     ai_summary: str | None
     ai_focus_recommendation: str | None
+    ai_pattern_insight: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

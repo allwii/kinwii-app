@@ -37,6 +37,26 @@ async def get_current_week(
     return plan
 
 
+@router.get("/previous", response_model=WeeklyPlanResponse)
+async def get_previous_week(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    monday = _current_monday()
+    plan = (
+        db.query(WeeklyPlan)
+        .filter(
+            WeeklyPlan.user_id == current_user.id,
+            WeeklyPlan.week_start_date < monday,
+        )
+        .order_by(WeeklyPlan.week_start_date.desc())
+        .first()
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="No previous week plan found")
+    return plan
+
+
 @router.post("", response_model=WeeklyPlanResponse, status_code=201)
 async def create_week_plan(
     body: WeeklyPlanCreate,

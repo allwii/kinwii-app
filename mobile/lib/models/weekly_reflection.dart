@@ -8,6 +8,7 @@ class WeeklyReflection {
   final String? focusNextWeek;
   final String? aiSummary;
   final String? aiFocusRecommendation;
+  final String? aiPatternInsight;
   final DateTime createdAt;
 
   WeeklyReflection({
@@ -20,6 +21,7 @@ class WeeklyReflection {
     this.focusNextWeek,
     this.aiSummary,
     this.aiFocusRecommendation,
+    this.aiPatternInsight,
     required this.createdAt,
   });
 
@@ -34,6 +36,7 @@ class WeeklyReflection {
         focusNextWeek: json['focus_next_week'],
         aiSummary: json['ai_summary'],
         aiFocusRecommendation: json['ai_focus_recommendation'],
+        aiPatternInsight: json['ai_pattern_insight'],
         createdAt: DateTime.parse(json['created_at']),
       );
 }
