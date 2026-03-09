@@ -1,5 +1,9 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
@@ -45,9 +49,10 @@ async def align_week(
 
     try:
         suggestions = await ai.align_week(plan, tasks, db)
-    except Exception:
+    except Exception as e:
+        logger.exception("align_week failed: %s", e)
         raise HTTPException(
-            status_code=503, detail="AI service temporarily unavailable"
+            status_code=503, detail=f"AI service error: {e}"
         )
 
     return AlignWeekResponse(suggestions=suggestions)

@@ -80,7 +80,7 @@ class AIService:
                 {"role": "system", "content": ALIGN_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=300,
+            max_completion_tokens=300,
             temperature=0.7,
         )
         content = response.choices[0].message.content or "[]"
@@ -141,7 +141,7 @@ class AIService:
                 {"role": "system", "content": REFLECTION_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=500,
+            max_completion_tokens=500,
             temperature=0.6,
         )
         content = response.choices[0].message.content or "{}"
@@ -205,7 +205,7 @@ class AIService:
                 {"role": "system", "content": DAILY_FOCUS_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=250,
+            max_completion_tokens=250,
             temperature=0.7,
         )
         content = response.choices[0].message.content or "{}"
@@ -253,7 +253,7 @@ class AIService:
                 {"role": "system", "content": SUGGEST_INTENT_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=150,
+            max_completion_tokens=150,
             temperature=0.7,
         )
         content = response.choices[0].message.content or "{}"

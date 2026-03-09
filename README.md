@@ -93,7 +93,7 @@ Edit `.env` with your credentials:
 DATABASE_URL=postgresql://user:password@localhost:5432/kinwii
 SECRET_KEY=your-256-bit-random-secret
 OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-5.2
 ```
 
 ### 4. Run database migrations
