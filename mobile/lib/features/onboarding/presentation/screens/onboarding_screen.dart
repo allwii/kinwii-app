@@ -178,7 +178,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     onChanged: () => setState(() {}),
                   ),
                   _Step3Why(controller: _whyController),
-                  _Step4Intent(controller: _intentController),
+                  _Step4Intent(
+                    controller: _intentController,
+                    onChanged: () => setState(() {}),
+                  ),
                 ],
               ),
             ),
@@ -508,9 +511,10 @@ class _Step3Why extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _Step4Intent extends StatelessWidget {
-  const _Step4Intent({required this.controller});
+  const _Step4Intent({required this.controller, required this.onChanged});
 
   final TextEditingController controller;
+  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -539,6 +543,7 @@ class _Step4Intent extends StatelessWidget {
             maxLines: 3,
             minLines: 2,
             textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => onChanged(),
             decoration: const InputDecoration(
               labelText: 'Weekly intent',
               hintText: 'e.g. Ship the onboarding flow and get 3 user calls',

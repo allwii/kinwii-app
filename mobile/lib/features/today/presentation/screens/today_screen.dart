@@ -104,15 +104,17 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
   Future<void> refresh() => _load();
 }
 
-// Daily focus suggestions provider
-final _dailyFocusProvider = FutureProvider.autoDispose
-    .family<Map<String, dynamic>?, String>((ref, weeklyPlanId) async {
+// Daily focus suggestions provider — no autoDispose so the response is cached
+// for the app session. Keyed by (weeklyPlanId, date) so it auto-refreshes on
+// a new day without any manual invalidation.
+final _dailyFocusProvider = FutureProvider
+    .family<Map<String, dynamic>?, (String, String)>((ref, key) async {
+  final (weeklyPlanId, date) = key;
   final api = ref.read(apiServiceProvider);
   try {
-    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final response = await api.post('/ai/suggest-daily-focus', data: {
       'weekly_plan_id': weeklyPlanId,
-      'date': dateStr,
+      'date': date,
     });
     return response.data as Map<String, dynamic>;
   } catch (_) {
@@ -135,6 +137,37 @@ class TodayScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: weeklyPlanAsync.maybeWhen(
+        data: (plan) => FloatingActionButton(
+          onPressed: plan == null
+              ? null
+              : () {
+                  final weeklyPlanId = plan.id;
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    builder: (_) => _AddTaskSheet(
+                      weeklyPlanId: weeklyPlanId,
+                      notifier: ref.read(_todayTasksProvider.notifier),
+                      onAdded: () async {
+                        await ref
+                            .read(_todayTasksProvider.notifier)
+                            .refresh();
+                      },
+                    ),
+                  );
+                },
+          backgroundColor: AppColors.kiwi400,
+          foregroundColor: Colors.white,
+          child: const Icon(Icons.add),
+        ),
+        orElse: () => null,
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.kiwi400,
@@ -242,27 +275,6 @@ class TodayScreen extends ConsumerWidget {
                     ),
                   );
                 },
-              ),
-
-              // Add task button
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: weeklyPlanAsync.maybeWhen(
-                    data: (plan) => _AddTaskButton(
-                      weeklyPlanId: plan?.id,
-                      onAdded: () async {
-                        await ref
-                            .read(_todayTasksProvider.notifier)
-                            .refresh();
-                      },
-                    ),
-                    orElse: () => const _AddTaskButton(
-                      weeklyPlanId: null,
-                      onAdded: null,
-                    ),
-                  ),
-                ),
               ),
 
               // Reflection prompt
@@ -386,7 +398,8 @@ class _DailyFocusCardState extends ConsumerState<_DailyFocusCard> {
   Widget build(BuildContext context) {
     if (_dismissed) return const SizedBox.shrink();
 
-    final focusAsync = ref.watch(_dailyFocusProvider(widget.weeklyPlanId));
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final focusAsync = ref.watch(_dailyFocusProvider((widget.weeklyPlanId, today)));
 
     return focusAsync.when(
       loading: () => KinwiiCard(
@@ -610,48 +623,8 @@ class _EnergyPill extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Add task button + bottom sheet
+// Add task bottom sheet
 // ---------------------------------------------------------------------------
-
-class _AddTaskButton extends ConsumerWidget {
-  const _AddTaskButton({
-    required this.weeklyPlanId,
-    required this.onAdded,
-  });
-
-  final String? weeklyPlanId;
-  final Future<void> Function()? onAdded;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: weeklyPlanId == null
-            ? null
-            : () => _showAddTaskSheet(context, ref),
-        icon: const Icon(Icons.add, size: 18),
-        label: const Text('Add task'),
-      ),
-    );
-  }
-
-  void _showAddTaskSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => _AddTaskSheet(
-        weeklyPlanId: weeklyPlanId!,
-        notifier: ref.read(_todayTasksProvider.notifier),
-        onAdded: onAdded,
-      ),
-    );
-  }
-}
 
 class _AddTaskSheet extends StatefulWidget {
   const _AddTaskSheet({
