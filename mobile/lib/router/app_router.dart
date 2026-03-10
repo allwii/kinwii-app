@@ -4,6 +4,7 @@ import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/goals/presentation/screens/goal_detail_screen.dart';
 import '../features/goals/presentation/screens/goals_screen.dart';
+import '../features/mission/presentation/screens/mission_screen.dart';
 import '../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../features/reflect/presentation/screens/reflect_screen.dart';
 import '../features/shell/app_shell.dart';
@@ -37,6 +38,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/mission',
+        builder: (context, state) => const MissionScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),

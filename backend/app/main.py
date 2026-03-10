@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes_ai import router as ai_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_goals import router as goals_router
+from app.api.routes_mission import router as mission_router
 from app.api.routes_reflection import router as reflection_router
 from app.api.routes_tasks import router as tasks_router
 from app.api.routes_week import router as week_router
@@ -19,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(mission_router)
 app.include_router(goals_router)
 app.include_router(week_router)
 app.include_router(tasks_router)

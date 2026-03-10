@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
+import '../../../../models/mission.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
@@ -17,6 +18,17 @@ import '../../../../features/auth/presentation/screens/login_screen.dart';
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
+
+final _missionProvider = FutureProvider.autoDispose<Mission?>((ref) async {
+  final api = ref.read(apiServiceProvider);
+  try {
+    final response = await api.get('/mission');
+    if (response.data == null) return null;
+    return Mission.fromJson(response.data as Map<String, dynamic>);
+  } catch (_) {
+    return null;
+  }
+});
 
 final _weeklyPlanProvider =
     FutureProvider.autoDispose<WeeklyPlan?>((ref) async {
@@ -131,6 +143,7 @@ class TodayScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final missionAsync = ref.watch(_missionProvider);
     final weeklyPlanAsync = ref.watch(_weeklyPlanProvider);
     final tasksAsync = ref.watch(_todayTasksProvider);
     final today = DateTime.now();
@@ -172,22 +185,60 @@ class TodayScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: AppColors.kiwi400,
           onRefresh: () async {
+            ref.invalidate(_missionProvider);
             ref.invalidate(_weeklyPlanProvider);
             await ref.read(_todayTasksProvider.notifier).refresh();
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // Date header
+              // Mission statement (subtle)
+              SliverToBoxAdapter(
+                child: missionAsync.maybeWhen(
+                  data: (mission) => mission != null
+                      ? Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                          child: Text(
+                            mission.statement,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: AppColors.kiwi600,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                  orElse: () => const SizedBox.shrink(),
+                ),
+              ),
+
+              // Date header + mission/roles icon
               SliverToBoxAdapter(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.fromLTRB(24, 24, 24, 4),
-                  child: Text(
-                    DateFormat('EEEE, MMM d').format(today),
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          color: AppColors.content,
+                  padding: const EdgeInsets.fromLTRB(24, 12, 16, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          DateFormat('EEEE, MMM d').format(today),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineLarge
+                              ?.copyWith(color: AppColors.content),
                         ),
+                      ),
+                      IconButton(
+                        onPressed: () => context.push('/mission'),
+                        icon: const Icon(
+                          Icons.compass_calibration_outlined,
+                          color: AppColors.kiwi500,
+                          size: 22,
+                        ),
+                        tooltip: 'Mission & Roles',
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -9,12 +9,14 @@ class GoalCreate(BaseModel):
     why: str | None = None
     start_date: date
     end_date: date
+    role_id: UUID | None = None
 
 
 class GoalUpdate(BaseModel):
     title: str | None = Field(None, max_length=200)
     why: str | None = None
     progress_percent: int | None = Field(None, ge=0, le=100)
+    role_id: UUID | None = None
 
 
 class GoalResponse(BaseModel):
@@ -25,6 +27,8 @@ class GoalResponse(BaseModel):
     start_date: date
     end_date: date
     progress_percent: int
+    role_id: UUID | None
+    role_name: str | None = None
     created_at: datetime
     updated_at: datetime | None
 

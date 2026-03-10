@@ -1,13 +1,14 @@
-// OnboardingScreen - Under-2-minute setup flow.
+// OnboardingScreen - Under-3-minute setup flow.
 // Usage: Registered as /onboarding route (no shell).
 //
 // Steps:
 //   1. Select quarter (Q1–Q4 grid, auto-selects current quarter)
-//   2. Enter goal title (min 10 chars to proceed)
-//   3. Write why it matters (optional)
-//   4. Set first weekly intent → "Start my week"
+//   2. Write your mission statement (optional)
+//   3. Enter goal title (min 10 chars to proceed)
+//   4. Write why it matters (optional)
+//   5. Set first weekly intent → "Start my week"
 //
-// On completion: POST /goals + POST /week → navigate /today + mark onboarding done.
+// On completion: PUT /mission + POST /goals + POST /week → navigate /today.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +45,8 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+  static const _totalPages = 5;
+
   final _pageController = PageController();
   int _currentPage = 0;
 
@@ -51,13 +54,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _selectedQuarter = _currentQuarter();
   final int _selectedYear = DateTime.now().year;
 
-  // Step 2
-  final _goalTitleController = TextEditingController();
+  // Step 2 — Mission
+  final _missionController = TextEditingController();
 
   // Step 3
-  final _whyController = TextEditingController();
+  final _goalTitleController = TextEditingController();
 
   // Step 4
+  final _whyController = TextEditingController();
+
+  // Step 5
   final _intentController = TextEditingController();
 
   bool _isLoading = false;
@@ -66,6 +72,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _missionController.dispose();
     _goalTitleController.dispose();
     _whyController.dispose();
     _intentController.dispose();
@@ -89,10 +96,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       case 0:
         return true; // quarter always selected
       case 1:
-        return _goalTitleController.text.trim().length >= 10;
+        return true; // mission is optional
       case 2:
-        return true; // why is optional
+        return _goalTitleController.text.trim().length >= 10;
       case 3:
+        return true; // why is optional
+      case 4:
         return _intentController.text.trim().isNotEmpty;
       default:
         return false;
@@ -109,6 +118,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       final api = ref.read(apiServiceProvider);
       final auth = ref.read(authServiceProvider);
+
+      // Save mission if provided
+      final missionText = _missionController.text.trim();
+      if (missionText.isNotEmpty) {
+        await api.put('/mission', data: {'statement': missionText});
+      }
 
       final start = _quarterStart(_selectedYear, _selectedQuarter);
       final end = _quarterEnd(_selectedYear, _selectedQuarter);
@@ -159,7 +174,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             // Step indicator dots
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: _StepDots(currentPage: _currentPage, totalPages: 4),
+              child: _StepDots(
+                  currentPage: _currentPage, totalPages: _totalPages),
             ),
 
             // Page content
@@ -173,12 +189,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     selectedYear: _selectedYear,
                     onSelect: (q) => setState(() => _selectedQuarter = q),
                   ),
-                  _Step2GoalTitle(
+                  _Step2Mission(
+                    controller: _missionController,
+                  ),
+                  _Step3GoalTitle(
                     controller: _goalTitleController,
                     onChanged: () => setState(() {}),
                   ),
-                  _Step3Why(controller: _whyController),
-                  _Step4Intent(
+                  _Step4Why(controller: _whyController),
+                  _Step5Intent(
                     controller: _intentController,
                     onChanged: () => setState(() {}),
                   ),
@@ -222,7 +241,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           child: ElevatedButton(
                             onPressed: _canAdvance()
                                 ? () {
-                                    if (_currentPage < 3) {
+                                    if (_currentPage < _totalPages - 1) {
                                       _goToPage(_currentPage + 1);
                                     } else {
                                       _complete();
@@ -230,7 +249,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                   }
                                 : null,
                             child: Text(
-                              _currentPage == 3
+                              _currentPage == _totalPages - 1
                                   ? 'Start my week'
                                   : 'Continue',
                             ),
@@ -389,11 +408,90 @@ class _Step1Quarter extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 — Goal title
+// Step 2 — Mission statement (NEW)
 // ---------------------------------------------------------------------------
 
-class _Step2GoalTitle extends StatelessWidget {
-  const _Step2GoalTitle({
+class _Step2Mission extends StatelessWidget {
+  const _Step2Mission({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'What is your life mission?',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.content,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Optional — one sentence that captures your life direction.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 32),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 3,
+            minLines: 2,
+            maxLength: 500,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Mission statement (optional)',
+              hintText:
+                  'e.g. To build meaningful products that empower people to live with clarity.',
+              alignLabelWithHint: true,
+              counterText: '',
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.kiwi50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.tips_and_updates_outlined,
+                  size: 16,
+                  color: AppColors.kiwi600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Your mission anchors everything — your goals, roles, and daily focus all connect back to it.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.kiwi700,
+                          height: 1.5,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 3 — Goal title
+// ---------------------------------------------------------------------------
+
+class _Step3GoalTitle extends StatelessWidget {
+  const _Step3GoalTitle({
     required this.controller,
     required this.onChanged,
   });
@@ -458,11 +556,11 @@ class _Step2GoalTitle extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 3 — Why it matters
+// Step 4 — Why it matters
 // ---------------------------------------------------------------------------
 
-class _Step3Why extends StatelessWidget {
-  const _Step3Why({required this.controller});
+class _Step4Why extends StatelessWidget {
+  const _Step4Why({required this.controller});
 
   final TextEditingController controller;
 
@@ -507,11 +605,11 @@ class _Step3Why extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — First weekly intent
+// Step 5 — First weekly intent
 // ---------------------------------------------------------------------------
 
-class _Step4Intent extends StatelessWidget {
-  const _Step4Intent({required this.controller, required this.onChanged});
+class _Step5Intent extends StatelessWidget {
+  const _Step5Intent({required this.controller, required this.onChanged});
 
   final TextEditingController controller;
   final VoidCallback onChanged;

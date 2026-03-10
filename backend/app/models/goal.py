@@ -21,8 +21,14 @@ class QuarterlyGoal(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     progress_percent = Column(Integer, default=0)
+    role_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("roles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     user = relationship("User", back_populates="goals")
+    role = relationship("Role", back_populates="goals")
     weekly_plans = relationship("WeeklyPlan", back_populates="quarterly_goal")

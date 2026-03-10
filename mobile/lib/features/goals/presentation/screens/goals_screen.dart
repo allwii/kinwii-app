@@ -11,6 +11,7 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
 import '../../../../models/quarterly_goal.dart';
+import '../../../../models/role.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,7 @@ class _GoalsNotifier
     required String why,
     required DateTime startDate,
     required DateTime endDate,
+    String? roleId,
   }) async {
     final api = _ref.read(apiServiceProvider);
     final response = await api.post('/goals', data: {
@@ -56,6 +58,7 @@ class _GoalsNotifier
       'why': why,
       'start_date': DateFormat('yyyy-MM-dd').format(startDate),
       'end_date': DateFormat('yyyy-MM-dd').format(endDate),
+      if (roleId != null) 'role_id': roleId,
     });
     final newGoal =
         QuarterlyGoal.fromJson(response.data as Map<String, dynamic>);
@@ -174,6 +177,23 @@ class GoalsScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Roles provider (for goal creation)
+// ---------------------------------------------------------------------------
+
+final _rolesProvider =
+    FutureProvider.autoDispose<List<Role>>((ref) async {
+  final api = ref.read(apiServiceProvider);
+  try {
+    final response = await api.get('/mission/roles');
+    return (response.data as List<dynamic>)
+        .map((e) => Role.fromJson(e as Map<String, dynamic>))
+        .toList();
+  } catch (_) {
+    return [];
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Goal card
 // ---------------------------------------------------------------------------
 
@@ -221,6 +241,24 @@ class _GoalCard extends StatelessWidget {
                       ),
                 ),
               ),
+              if (goal.roleName != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.energyCreative,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    goal.roleName!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF7C3AED),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ],
               const Spacer(),
               Text(
                 weeksLeft == 0
@@ -269,20 +307,21 @@ class _GoalCard extends StatelessWidget {
 // Create goal bottom sheet
 // ---------------------------------------------------------------------------
 
-class _CreateGoalSheet extends StatefulWidget {
+class _CreateGoalSheet extends ConsumerStatefulWidget {
   const _CreateGoalSheet({required this.notifier});
 
   final _GoalsNotifier notifier;
 
   @override
-  State<_CreateGoalSheet> createState() => _CreateGoalSheetState();
+  ConsumerState<_CreateGoalSheet> createState() => _CreateGoalSheetState();
 }
 
-class _CreateGoalSheetState extends State<_CreateGoalSheet> {
+class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
   final _titleController = TextEditingController();
   final _whyController = TextEditingController();
   DateTime _startDate = _currentQuarterStart();
   DateTime _endDate = _currentQuarterEnd();
+  String? _selectedRoleId;
   bool _isLoading = false;
   String? _error;
 
@@ -322,6 +361,7 @@ class _CreateGoalSheetState extends State<_CreateGoalSheet> {
         why: _whyController.text.trim(),
         startDate: _startDate,
         endDate: _endDate,
+        roleId: _selectedRoleId,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
@@ -391,6 +431,34 @@ class _CreateGoalSheetState extends State<_CreateGoalSheet> {
               hintText: 'e.g. Prove the concept and get first customers',
             ),
           ),
+          const SizedBox(height: 14),
+          // Role dropdown
+          ref.watch(_rolesProvider).when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (roles) {
+                  if (roles.isEmpty) return const SizedBox.shrink();
+                  return DropdownButtonFormField<String?>(
+                    initialValue: _selectedRoleId,
+                    decoration: const InputDecoration(
+                      labelText: 'Life role (optional)',
+                      hintText: 'Which role does this serve?',
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('No role'),
+                      ),
+                      ...roles.map((r) => DropdownMenuItem(
+                            value: r.id,
+                            child: Text(r.name),
+                          )),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _selectedRoleId = value),
+                  );
+                },
+              ),
           const SizedBox(height: 16),
           Row(
             children: [

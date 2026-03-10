@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
@@ -12,17 +12,26 @@ from app.schemas.goal import GoalCreate, GoalResponse, GoalUpdate
 router = APIRouter(prefix="/goals", tags=["goals"])
 
 
+def _goal_to_response(goal: QuarterlyGoal) -> dict:
+    """Convert a goal ORM object to a response dict with role_name."""
+    data = {c.name: getattr(goal, c.name) for c in goal.__table__.columns}
+    data["role_name"] = goal.role.name if goal.role else None
+    return data
+
+
 @router.get("", response_model=list[GoalResponse])
 async def list_goals(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
+    goals = (
         db.query(QuarterlyGoal)
+        .options(joinedload(QuarterlyGoal.role))
         .filter(QuarterlyGoal.user_id == current_user.id)
         .order_by(QuarterlyGoal.created_at.desc())
         .all()
     )
+    return [_goal_to_response(g) for g in goals]
 
 
 @router.post("", response_model=GoalResponse, status_code=201)
@@ -35,7 +44,7 @@ async def create_goal(
     db.add(goal)
     db.commit()
     db.refresh(goal)
-    return goal
+    return _goal_to_response(goal)
 
 
 @router.get("/{goal_id}", response_model=GoalResponse)
@@ -46,12 +55,13 @@ async def get_goal(
 ):
     goal = (
         db.query(QuarterlyGoal)
+        .options(joinedload(QuarterlyGoal.role))
         .filter(QuarterlyGoal.id == goal_id, QuarterlyGoal.user_id == current_user.id)
         .first()
     )
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    return goal
+    return _goal_to_response(goal)
 
 
 @router.put("/{goal_id}", response_model=GoalResponse)
@@ -63,6 +73,7 @@ async def update_goal(
 ):
     goal = (
         db.query(QuarterlyGoal)
+        .options(joinedload(QuarterlyGoal.role))
         .filter(QuarterlyGoal.id == goal_id, QuarterlyGoal.user_id == current_user.id)
         .first()
     )
@@ -72,7 +83,7 @@ async def update_goal(
         setattr(goal, key, value)
     db.commit()
     db.refresh(goal)
-    return goal
+    return _goal_to_response(goal)
 
 
 @router.delete("/{goal_id}", status_code=204)
