@@ -8,7 +8,8 @@ from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.models.weekly_plan import WeeklyPlan
+from app.schemas.task import CarryForwardRequest, TaskCreate, TaskResponse, TaskUpdate
 from app.services.alignment_service import update_week_progress
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -109,3 +110,51 @@ async def delete_task(
     db.commit()
     update_week_progress(weekly_plan_id, db)
     db.commit()
+
+
+@router.post("/carry-forward", response_model=list[TaskResponse], status_code=201)
+async def carry_forward_tasks(
+    body: CarryForwardRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Verify target plan belongs to user
+    target_plan = (
+        db.query(WeeklyPlan)
+        .filter(
+            WeeklyPlan.id == body.target_weekly_plan_id,
+            WeeklyPlan.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not target_plan:
+        raise HTTPException(status_code=404, detail="Target weekly plan not found")
+
+    # Fetch source tasks owned by user
+    source_tasks = (
+        db.query(Task)
+        .filter(Task.id.in_(body.task_ids), Task.user_id == current_user.id)
+        .all()
+    )
+    if not source_tasks:
+        raise HTTPException(status_code=404, detail="No matching tasks found")
+
+    new_tasks = []
+    for t in source_tasks:
+        new_task = Task(
+            user_id=current_user.id,
+            weekly_plan_id=body.target_weekly_plan_id,
+            title=t.title,
+            date=body.target_date,
+            energy_type=t.energy_type,
+            completed=False,
+        )
+        db.add(new_task)
+        new_tasks.append(new_task)
+
+    db.commit()
+    for nt in new_tasks:
+        db.refresh(nt)
+    update_week_progress(body.target_weekly_plan_id, db)
+    db.commit()
+    return new_tasks

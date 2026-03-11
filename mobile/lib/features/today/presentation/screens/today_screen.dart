@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
+import '../../../../models/daily_intent.dart';
 import '../../../../models/mission.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
@@ -134,6 +135,75 @@ final _dailyFocusProvider = FutureProvider
   }
 });
 
+// Daily intent provider — keyed by date string
+final _dailyIntentProvider = StateNotifierProvider.autoDispose
+    .family<_DailyIntentNotifier, AsyncValue<DailyIntent?>, String>(
+  (ref, dateStr) => _DailyIntentNotifier(ref, dateStr),
+);
+
+class _DailyIntentNotifier extends StateNotifier<AsyncValue<DailyIntent?>> {
+  _DailyIntentNotifier(this._ref, this._dateStr)
+      : super(const AsyncValue.loading()) {
+    _load();
+  }
+
+  final Ref _ref;
+  final String _dateStr;
+
+  Future<void> _load() async {
+    try {
+      final api = _ref.read(apiServiceProvider);
+      final response =
+          await api.get('/daily', queryParameters: {'date': _dateStr});
+      if (response.data == null) {
+        state = const AsyncValue.data(null);
+      } else {
+        state = AsyncValue.data(
+            DailyIntent.fromJson(response.data as Map<String, dynamic>));
+      }
+    } catch (_) {
+      state = const AsyncValue.data(null);
+    }
+  }
+
+  Future<void> create(String intent, String? weeklyPlanId) async {
+    final api = _ref.read(apiServiceProvider);
+    final response = await api.post('/daily', data: {
+      'date': _dateStr,
+      'intent': intent,
+      if (weeklyPlanId != null) 'weekly_plan_id': weeklyPlanId,
+    });
+    state = AsyncValue.data(
+        DailyIntent.fromJson(response.data as Map<String, dynamic>));
+  }
+
+  Future<void> updateHonored(String intentId, bool honored, String? note) async {
+    final api = _ref.read(apiServiceProvider);
+    final response = await api.put('/daily/$intentId', data: {
+      'honored': honored,
+      if (note != null) 'note': note,
+    });
+    state = AsyncValue.data(
+        DailyIntent.fromJson(response.data as Map<String, dynamic>));
+  }
+}
+
+// AI-suggested daily intent provider
+final _suggestedDailyIntentProvider = FutureProvider
+    .family<String?, (String, String)>((ref, key) async {
+  final (weeklyPlanId, date) = key;
+  final api = ref.read(apiServiceProvider);
+  try {
+    final response = await api.post('/ai/suggest-daily-intent', data: {
+      'weekly_plan_id': weeklyPlanId,
+      'date': date,
+    });
+    return (response.data as Map<String, dynamic>)['daily_intent'] as String?;
+  } catch (_) {
+    return null;
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
@@ -185,8 +255,10 @@ class TodayScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: AppColors.kiwi400,
           onRefresh: () async {
+            final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
             ref.invalidate(_missionProvider);
             ref.invalidate(_weeklyPlanProvider);
+            ref.invalidate(_dailyIntentProvider(today));
             await ref.read(_todayTasksProvider.notifier).refresh();
           },
           child: CustomScrollView(
@@ -230,6 +302,15 @@ class TodayScreen extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
+                        onPressed: () => context.push('/coach'),
+                        icon: const Icon(
+                          Icons.psychology,
+                          color: AppColors.kiwi500,
+                          size: 22,
+                        ),
+                        tooltip: 'Growth Coach',
+                      ),
+                      IconButton(
                         onPressed: () => context.push('/mission'),
                         icon: const Icon(
                           Icons.compass_calibration_outlined,
@@ -264,6 +345,19 @@ class TodayScreen extends ConsumerWidget {
                   child: weeklyPlanAsync.maybeWhen(
                     data: (plan) => plan != null
                         ? _DailyFocusCard(weeklyPlanId: plan.id)
+                        : const SizedBox.shrink(),
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+
+              // Daily intent card
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: weeklyPlanAsync.maybeWhen(
+                    data: (plan) => plan != null
+                        ? _DailyIntentCard(weeklyPlanId: plan.id)
                         : const SizedBox.shrink(),
                     orElse: () => const SizedBox.shrink(),
                   ),
@@ -560,6 +654,379 @@ class _DailyFocusCardState extends ConsumerState<_DailyFocusCard> {
           ),
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily intent card
+// ---------------------------------------------------------------------------
+
+class _DailyIntentCard extends ConsumerStatefulWidget {
+  const _DailyIntentCard({required this.weeklyPlanId});
+
+  final String weeklyPlanId;
+
+  @override
+  ConsumerState<_DailyIntentCard> createState() => _DailyIntentCardState();
+}
+
+class _DailyIntentCardState extends ConsumerState<_DailyIntentCard> {
+  final _intentController = TextEditingController();
+  final _noteController = TextEditingController();
+  bool _showInput = false;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _intentController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final intentAsync = ref.watch(_dailyIntentProvider(today));
+
+    return intentAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (intent) {
+        // Intent already set — show it
+        if (intent != null) {
+          return _buildSetIntent(context, intent, today);
+        }
+        // No intent — show input or prompt
+        if (_showInput) {
+          return _buildInputCard(context, today);
+        }
+        return _buildPromptCard(context, today);
+      },
+    );
+  }
+
+  Widget _buildPromptCard(BuildContext context, String today) {
+    // Load AI suggestion
+    final suggestionAsync = ref.watch(
+        _suggestedDailyIntentProvider((widget.weeklyPlanId, today)));
+
+    return KinwiiCard(
+      color: AppColors.surfaceAlt,
+      onTap: () {
+        // Pre-fill with AI suggestion if available
+        final suggestion = suggestionAsync.valueOrNull;
+        if (suggestion != null) {
+          _intentController.text = suggestion;
+        }
+        setState(() => _showInput = true);
+      },
+      child: Row(
+        children: [
+          const Icon(Icons.wb_sunny_outlined,
+              color: AppColors.kiwi500, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Set your daily intent',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.content,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                suggestionAsync.maybeWhen(
+                  data: (suggestion) => suggestion != null
+                      ? Text(
+                          suggestion,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.contentSecondary,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                        )
+                      : Text(
+                          'What is today about?',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.contentTertiary,
+                                  ),
+                        ),
+                  orElse: () => Text(
+                    'What is today about?',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.contentTertiary,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_ios,
+              size: 14, color: AppColors.contentTertiary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputCard(BuildContext context, String today) {
+    return KinwiiCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.wb_sunny_outlined,
+                  color: AppColors.kiwi500, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Daily intent',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppColors.kiwi600,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _intentController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            maxLength: 200,
+            decoration: const InputDecoration(
+              hintText: 'What is today about?',
+              counterText: '',
+              isDense: true,
+            ),
+            onSubmitted: (_) => _saveIntent(today),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => setState(() => _showInput = false),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _saving ? null : () => _saveIntent(today),
+                child: _saving
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Set intent'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSetIntent(
+      BuildContext context, DailyIntent intent, String today) {
+    final isEvening = DateTime.now().hour >= 18;
+    final alreadyReflected = intent.honored != null;
+
+    return KinwiiCard(
+      color: AppColors.kiwi50,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.wb_sunny_outlined,
+                  color: AppColors.kiwi500, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Today\'s intent',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppColors.kiwi600,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            intent.intent,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+          // Evening reflection prompt
+          if (isEvening && !alreadyReflected) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: AppColors.borderSubtle),
+            const SizedBox(height: 12),
+            Text(
+              'Did you honor your intent today?',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentSecondary,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _HonoredButton(
+                  label: 'Yes',
+                  icon: Icons.check_circle_outline,
+                  color: AppColors.kiwi400,
+                  onTap: () => _markHonored(intent.id, true, today),
+                ),
+                const SizedBox(width: 8),
+                _HonoredButton(
+                  label: 'Not quite',
+                  icon: Icons.remove_circle_outline,
+                  color: AppColors.contentTertiary,
+                  onTap: () => _showNoteDialog(intent.id, today),
+                ),
+              ],
+            ),
+          ],
+          // Already reflected
+          if (alreadyReflected) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  intent.honored == true
+                      ? Icons.check_circle
+                      : Icons.remove_circle_outline,
+                  size: 16,
+                  color: intent.honored == true
+                      ? AppColors.kiwi500
+                      : AppColors.contentTertiary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  intent.honored == true ? 'Intent honored' : 'Not fully honored',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: intent.honored == true
+                            ? AppColors.kiwi600
+                            : AppColors.contentSecondary,
+                      ),
+                ),
+              ],
+            ),
+            if (intent.note != null && intent.note!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                intent.note!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.contentSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveIntent(String today) async {
+    final text = _intentController.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(_dailyIntentProvider(today).notifier)
+          .create(text, widget.weeklyPlanId);
+      setState(() => _showInput = false);
+    } catch (_) {
+      // Ignore
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _markHonored(
+      String intentId, bool honored, String today) async {
+    await ref
+        .read(_dailyIntentProvider(today).notifier)
+        .updateHonored(intentId, honored, null);
+  }
+
+  Future<void> _showNoteDialog(String intentId, String today) async {
+    _noteController.clear();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Quick note'),
+        content: TextField(
+          controller: _noteController,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: 'What got in the way? (optional)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      final note = _noteController.text.trim();
+      await ref
+          .read(_dailyIntentProvider(today).notifier)
+          .updateHonored(intentId, false, note.isEmpty ? null : note);
+    }
+  }
+}
+
+class _HonoredButton extends StatelessWidget {
+  const _HonoredButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderSubtle),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.content,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

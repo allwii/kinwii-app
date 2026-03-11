@@ -5,6 +5,8 @@ from app.models.goal import QuarterlyGoal
 from app.models.weekly_plan import WeeklyPlan
 from app.models.task import Task, EnergyType
 from app.models.reflection import WeeklyReflection
+from app.models.daily_intent import DailyIntent
+from app.models.coach_message import CoachMessage
 
 __all__ = [
     "User",
@@ -15,4 +17,6 @@ __all__ = [
     "Task",
     "EnergyType",
     "WeeklyReflection",
+    "DailyIntent",
+    "CoachMessage",
 ]

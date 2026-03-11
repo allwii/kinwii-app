@@ -132,6 +132,7 @@ flutter pub get
 
 ```bash
 # iOS simulator
+open -a Simulator
 flutter run -d ios
 
 # Android emulator

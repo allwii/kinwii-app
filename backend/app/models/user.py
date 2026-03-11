@@ -21,3 +21,5 @@ class User(Base):
     weekly_plans = relationship("WeeklyPlan", back_populates="user", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="user", cascade="all, delete-orphan")
     reflections = relationship("WeeklyReflection", back_populates="user", cascade="all, delete-orphan")
+    daily_intents = relationship("DailyIntent", back_populates="user", cascade="all, delete-orphan")
+    coach_messages = relationship("CoachMessage", back_populates="user", cascade="all, delete-orphan")

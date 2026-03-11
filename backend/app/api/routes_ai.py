@@ -17,6 +17,8 @@ from app.schemas.ai import (
     AlignWeekResponse,
     DailyFocusRequest,
     DailyFocusResponse,
+    SuggestDailyIntentRequest,
+    SuggestDailyIntentResponse,
     SuggestIntentRequest,
     SuggestIntentResponse,
     SummarizeReflectionRequest,
@@ -166,3 +168,33 @@ async def suggest_intent(
         )
 
     return SuggestIntentResponse(suggested_intent=suggested_intent)
+
+
+@router.post("/suggest-daily-intent", response_model=SuggestDailyIntentResponse)
+async def suggest_daily_intent(
+    body: SuggestDailyIntentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    ai: AIService = Depends(get_ai_service),
+):
+    plan = (
+        db.query(WeeklyPlan)
+        .filter(
+            WeeklyPlan.id == body.weekly_plan_id,
+            WeeklyPlan.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Weekly plan not found")
+
+    tasks = db.query(Task).filter(Task.weekly_plan_id == plan.id).all()
+
+    try:
+        daily_intent = await ai.suggest_daily_intent(plan, tasks, body.date, db)
+    except Exception:
+        raise HTTPException(
+            status_code=503, detail="AI service temporarily unavailable"
+        )
+
+    return SuggestDailyIntentResponse(daily_intent=daily_intent)

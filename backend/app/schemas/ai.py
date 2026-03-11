@@ -32,6 +32,15 @@ class DailyFocusResponse(BaseModel):
     nudge: str | None = None
 
 
+class SuggestDailyIntentRequest(BaseModel):
+    weekly_plan_id: UUID
+    date: dt.date
+
+
+class SuggestDailyIntentResponse(BaseModel):
+    daily_intent: str
+
+
 class SuggestIntentRequest(BaseModel):
     goal_id: UUID
     previous_plan_id: UUID | None = None

@@ -20,6 +20,12 @@ class TaskUpdate(BaseModel):
     energy_type: Optional[EnergyType] = None
 
 
+class CarryForwardRequest(BaseModel):
+    task_ids: list[UUID]
+    target_weekly_plan_id: UUID
+    target_date: dt.date
+
+
 class TaskResponse(BaseModel):
     id: UUID
     user_id: UUID

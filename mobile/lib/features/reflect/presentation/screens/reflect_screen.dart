@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/kinwii_card.dart';
@@ -96,10 +97,64 @@ class _ReflectBody extends ConsumerWidget {
       loading: () => const Center(
         child: CircularProgressIndicator(color: AppColors.kiwi400),
       ),
-      error: (_, __) => _ReflectionForm(plan: plan),
+      error: (_, __) => _StartReviewPrompt(plan: plan),
       data: (reflection) => reflection != null
           ? _ReflectionReadOnly(reflection: reflection)
-          : _ReflectionForm(plan: plan),
+          : _StartReviewPrompt(plan: plan),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Start review prompt — replaces the old inline form
+// ---------------------------------------------------------------------------
+
+class _StartReviewPrompt extends StatelessWidget {
+  const _StartReviewPrompt({required this.plan});
+  final WeeklyPlan plan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.self_improvement,
+              size: 64,
+              color: AppColors.kiwi300,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Ready to reflect?',
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(color: AppColors.content),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Review your week, get AI insights, and plan ahead.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: AppColors.contentSecondary),
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push('/reflect/review/${plan.id}'),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start weekly review'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
