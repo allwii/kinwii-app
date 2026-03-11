@@ -11,7 +11,6 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
 import '../../../../models/daily_intent.dart';
-import '../../../../models/mission.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
@@ -19,17 +18,6 @@ import '../../../../features/auth/presentation/screens/login_screen.dart';
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
-
-final _missionProvider = FutureProvider.autoDispose<Mission?>((ref) async {
-  final api = ref.read(apiServiceProvider);
-  try {
-    final response = await api.get('/mission');
-    if (response.data == null) return null;
-    return Mission.fromJson(response.data as Map<String, dynamic>);
-  } catch (_) {
-    return null;
-  }
-});
 
 final _weeklyPlanProvider =
     FutureProvider.autoDispose<WeeklyPlan?>((ref) async {
@@ -213,7 +201,6 @@ class TodayScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final missionAsync = ref.watch(_missionProvider);
     final weeklyPlanAsync = ref.watch(_weeklyPlanProvider);
     final tasksAsync = ref.watch(_todayTasksProvider);
     final today = DateTime.now();
@@ -256,7 +243,6 @@ class TodayScreen extends ConsumerWidget {
           color: AppColors.kiwi400,
           onRefresh: () async {
             final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-            ref.invalidate(_missionProvider);
             ref.invalidate(_weeklyPlanProvider);
             ref.invalidate(_dailyIntentProvider(today));
             await ref.read(_todayTasksProvider.notifier).refresh();
@@ -264,32 +250,10 @@ class TodayScreen extends ConsumerWidget {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // Mission statement (subtle)
-              SliverToBoxAdapter(
-                child: missionAsync.maybeWhen(
-                  data: (mission) => mission != null
-                      ? Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                          child: Text(
-                            mission.statement,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: AppColors.kiwi600,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                  orElse: () => const SizedBox.shrink(),
-                ),
-              ),
-
-              // Date header + mission/roles icon
+              // Date header + coach icon
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 4),
                   child: Row(
                     children: [
                       Expanded(
@@ -309,15 +273,6 @@ class TodayScreen extends ConsumerWidget {
                           size: 22,
                         ),
                         tooltip: 'Growth Coach',
-                      ),
-                      IconButton(
-                        onPressed: () => context.push('/mission'),
-                        icon: const Icon(
-                          Icons.compass_calibration_outlined,
-                          color: AppColors.kiwi500,
-                          size: 22,
-                        ),
-                        tooltip: 'Mission & Roles',
                       ),
                     ],
                   ),
