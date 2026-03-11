@@ -182,6 +182,22 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
     if (mounted) setState(() => _editingIntent = false);
   }
 
+  void _showCreateWeekSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (_) => _CreateWeekSheet(
+        onCreated: () {
+          ref.invalidate(_currentWeekPlanProvider);
+        },
+      ),
+    );
+  }
+
   void _showAiSheet(BuildContext context, List<String> suggestions) {
     showModalBottomSheet(
       context: context,
@@ -297,7 +313,9 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                     loading: () => const _IntentSkeleton(),
                     error: (_, __) => const _IntentSkeleton(),
                     data: (plan) => plan == null
-                        ? const _IntentSkeleton()
+                        ? _IntentEmpty(
+                            onSetUp: () => _showCreateWeekSheet(context),
+                          )
                         : isCurrentWeek
                             ? _IntentCard(
                                 plan: plan,
@@ -968,6 +986,164 @@ class _AiAlignSheet extends StatelessWidget {
             child: OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Dismiss'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Empty state for when no weekly plan exists
+// ---------------------------------------------------------------------------
+
+class _IntentEmpty extends StatelessWidget {
+  const _IntentEmpty({required this.onSetUp});
+
+  final VoidCallback onSetUp;
+
+  @override
+  Widget build(BuildContext context) {
+    return KinwiiCard(
+      color: AppColors.kiwi50,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Weekly intent',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: AppColors.kiwi600,
+                  letterSpacing: 0.4,
+                ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "You haven't set up this week yet.",
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onSetUp,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Set up this week'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Create week bottom sheet
+// ---------------------------------------------------------------------------
+
+class _CreateWeekSheet extends ConsumerStatefulWidget {
+  const _CreateWeekSheet({required this.onCreated});
+
+  final VoidCallback onCreated;
+
+  @override
+  ConsumerState<_CreateWeekSheet> createState() => _CreateWeekSheetState();
+}
+
+class _CreateWeekSheetState extends ConsumerState<_CreateWeekSheet> {
+  final _intentController = TextEditingController();
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _intentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final intent = _intentController.text.trim();
+    if (intent.isEmpty) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      final now = DateTime.now();
+      final weekday = now.weekday;
+      final monday = DateTime(now.year, now.month, now.day - (weekday - 1));
+
+      await api.post('/week', data: {
+        'week_start_date': DateFormat('yyyy-MM-dd').format(monday),
+        'intent': intent,
+      });
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onCreated();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not create week. Try again.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set up this week',
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(color: AppColors.content),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'What do you want to achieve this week?',
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: AppColors.contentSecondary),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _intentController,
+            autofocus: true,
+            maxLines: 2,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Ship the onboarding flow',
+              hintStyle: TextStyle(color: AppColors.contentTertiary),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _save,
+              child: _isSaving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Start this week'),
             ),
           ),
         ],

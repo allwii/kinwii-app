@@ -94,13 +94,16 @@ Flutter App → FastAPI Backend → PostgreSQL
 | Login | Authentication | `/auth/login` |
 | Register | Account creation | `/auth/register` |
 | Onboarding | 4-step setup | `/onboarding` |
+| Mission | Mission & roles management | `/mission` |
 | Today | Daily focus | `/today` |
-| Week | Weekly alignment | `/week` |
-| Goals | Quarterly direction | `/goals` |
-| Goal Detail | Goal deep-dive | `/goals/:id` |
+| Week | Weekly alignment + create week | `/week` |
+| Goals | Quarterly direction + mission | `/goals` |
+| Goal Detail | Goal editing + progress | `/goals/:id` |
 | Reflect | Weekly reflection | `/reflect` |
+| Weekly Review | Guided review wizard | `/reflect/review/:id` |
+| Coach | AI growth coach chat | `/coach` |
 
-Navigation: 4-tab bottom bar (Today, Week, Goals, Reflect)
+Navigation: 4-tab bottom bar (Today, Week, Goals, Reflect) + Coach icon in AppShell
 
 ---
 
@@ -173,6 +176,24 @@ Feature C — Enhanced Reflection with Pattern Tracking:
 
 Bonus — Enrich existing AI:
 - [x] Upgrade `align_week()` prompt with quarterly goal context (title + why + progress + weeks remaining)
+
+### Phase 9.5: UX Polish — KISS Pass ✅
+- [x] KinwiiCard InkWell press feedback (replace GestureDetector with Material + InkWell)
+- [x] Reflect tab empty state with "Go to Week" action button (was dead end)
+- [x] Week screen empty state with "Set up this week" button + create week sheet (was showing skeleton)
+- [ ] Coach typing indicator animation fix (AnimationController + repeat)
+- [ ] Move coach icon from Today header to AppShell (global access)
+- [ ] "Working toward: [Goal title]" context line on Today screen
+
+### Phase 9.6: Features — Coach, Daily Intent, Mission & Roles ✅
+- [x] AI growth coach chat screen with suggested prompts
+- [x] Daily intent CRUD (set + view on Today screen)
+- [x] Mission & Roles management screen
+- [x] Mission statement display moved from Today → Goals page
+- [x] Quarterly goals editable (inline progress slider + full edit sheet)
+- [x] Life roles with goal association
+- [x] Weekly review wizard (guided reflection flow)
+- [x] Auto-refresh on navigation return (context.push + .then pattern)
 
 ### AI Features — Wave 2 (Planned)
 - [ ] Goal Pulse Check — "How am I tracking?" on Goal Detail screen

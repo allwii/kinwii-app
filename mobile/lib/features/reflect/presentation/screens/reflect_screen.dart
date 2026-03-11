@@ -64,12 +64,44 @@ class ReflectScreen extends ConsumerWidget {
             child: Text('Could not load weekly plan.'),
           ),
           data: (plan) => plan == null
-              ? const Center(
+              ? Center(
                   child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Text(
-                      'No active week found. Set a weekly intent first.',
-                      textAlign: TextAlign.center,
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.self_improvement,
+                          size: 64,
+                          color: AppColors.kiwi300,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'No active week yet',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(color: AppColors.content),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Set up your weekly intent first, then come back to reflect.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: AppColors.contentSecondary),
+                        ),
+                        const SizedBox(height: 28),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => context.go('/week'),
+                            icon: const Icon(Icons.view_week_outlined),
+                            label: const Text('Go to Week'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 )

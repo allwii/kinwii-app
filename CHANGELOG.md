@@ -6,6 +6,41 @@ Format: [category] description — files affected
 
 ---
 
+## 2026-03-11 — UX Polish (KISS Pass) + Features
+
+### Added
+
+#### Coach & Daily Intent
+- [backend] Coach message endpoints: `GET /coach/messages`, `POST /coach/message` — `backend/app/api/routes_coach.py`
+- [backend] CoachMessage model — `backend/app/models/coach_message.py`
+- [backend] Coach schemas — `backend/app/schemas/coach.py`
+- [backend] Daily intent endpoints — `backend/app/api/routes_daily.py`
+- [backend] DailyIntent model — `backend/app/models/daily_intent.py`
+- [backend] Daily intent schemas — `backend/app/schemas/daily_intent.py`
+- [flutter] Coach screen with chat UI, suggested prompts, typing indicator — `mobile/lib/features/coach/presentation/screens/coach_screen.dart`
+- [flutter] CoachMessage model — `mobile/lib/models/coach_message.dart`
+- [flutter] DailyIntent model — `mobile/lib/models/daily_intent.dart`
+- [flutter] Weekly review wizard screen — `mobile/lib/features/reflect/presentation/screens/weekly_review_screen.dart`
+
+#### Goals & Mission UX
+- [flutter] Moved mission statement display from Today → Goals page — `mobile/lib/features/goals/presentation/screens/goals_screen.dart`
+- [flutter] Editable quarterly goals: inline progress slider + full edit bottom sheet — `mobile/lib/features/goals/presentation/screens/goal_detail_screen.dart`
+- [flutter] Auto-refresh goals/mission on navigation return (context.push + .then pattern) — `goals_screen.dart`, `goal_detail_screen.dart`
+
+#### UX Improvements (KISS Pass)
+- [flutter] KinwiiCard: replaced GestureDetector with Material + InkWell for press feedback — `mobile/lib/core/widgets/kinwii_card.dart`
+- [flutter] Reflect tab: replaced dead-end text with empty state + "Go to Week" action button — `mobile/lib/features/reflect/presentation/screens/reflect_screen.dart`
+- [flutter] Week screen: replaced skeleton with proper empty state + "Set up this week" button + create week bottom sheet — `mobile/lib/features/week/presentation/screens/week_screen.dart`
+
+### Changed
+- [flutter] Today screen: removed mission section, kept coach icon in header — `mobile/lib/features/today/presentation/screens/today_screen.dart`
+- [flutter] Router: added `/coach`, `/mission`, `/reflect/review/:id` routes — `mobile/lib/router/app_router.dart`
+- [backend] Registered coach and daily intent routers — `backend/app/main.py`
+- [backend] Updated AI routes — `backend/app/api/routes_ai.py`
+- [backend] Updated task schemas — `backend/app/schemas/task.py`
+
+---
+
 ## 2026-02-25 — AI Features Wave 1
 
 ### Added
