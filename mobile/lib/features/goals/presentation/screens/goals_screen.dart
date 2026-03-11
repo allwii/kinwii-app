@@ -143,7 +143,11 @@ class GoalsScreen extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: () => context.push('/mission'),
+                        onPressed: () {
+                          context.push('/mission').then((_) {
+                            ref.invalidate(_missionProvider);
+                          });
+                        },
                         icon: const Icon(
                           Icons.compass_calibration_outlined,
                           color: AppColors.kiwi500,
@@ -194,8 +198,11 @@ class GoalsScreen extends ConsumerWidget {
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) => _GoalCard(
                         goal: goals[index],
-                        onTap: () =>
-                            context.go('/goals/${goals[index].id}'),
+                        onTap: () {
+                          context.push('/goals/${goals[index].id}').then((_) {
+                            ref.read(_goalsProvider.notifier).refresh();
+                          });
+                        },
                       ),
                     ),
                   );
