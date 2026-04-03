@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../services/subscription_service.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -46,6 +47,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
 
       await auth.setOnboardingComplete();
+      await ref.read(subscriptionProvider.notifier).refresh();
       if (mounted) context.go('/today');
     } catch (e) {
       setState(

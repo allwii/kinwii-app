@@ -1,10 +1,16 @@
+import enum
 import uuid
 
-from sqlalchemy import Column, DateTime, String, func
+from sqlalchemy import Column, DateTime, Enum, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+class SubscriptionTier(str, enum.Enum):
+    free = "free"
+    pro = "pro"
 
 
 class User(Base):
@@ -14,6 +20,15 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Subscription fields
+    subscription_tier = Column(
+        Enum(SubscriptionTier), nullable=False, server_default="free"
+    )
+    trial_start_date = Column(DateTime(timezone=True), nullable=True)
+    trial_end_date = Column(DateTime(timezone=True), nullable=True)
+    subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
+    revenuecat_id = Column(String, nullable=True)
 
     mission = relationship("Mission", back_populates="user", uselist=False, cascade="all, delete-orphan")
     roles = relationship("Role", back_populates="user", cascade="all, delete-orphan")

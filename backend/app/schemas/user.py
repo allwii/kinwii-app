@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class UserCreate(BaseModel):
@@ -18,6 +18,9 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     created_at: datetime
+    subscription_tier: str = "free"
+    trial_end_date: datetime | None = None
+    subscription_expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

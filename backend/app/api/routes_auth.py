@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -8,10 +10,12 @@ from app.middleware.auth_middleware import (
     hash_password,
     verify_password,
 )
-from app.models.user import User
+from app.models.user import SubscriptionTier, User
 from app.schemas.user import TokenResponse, UserCreate, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+TRIAL_DAYS = 7
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
@@ -22,7 +26,14 @@ async def register(body: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered",
         )
-    user = User(email=body.email, hashed_password=hash_password(body.password))
+    now = datetime.now(timezone.utc)
+    user = User(
+        email=body.email,
+        hashed_password=hash_password(body.password),
+        subscription_tier=SubscriptionTier.pro,
+        trial_start_date=now,
+        trial_end_date=now + timedelta(days=TRIAL_DAYS),
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

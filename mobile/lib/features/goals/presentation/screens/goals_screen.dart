@@ -14,6 +14,7 @@ import '../../../../models/mission.dart';
 import '../../../../models/quarterly_goal.dart';
 import '../../../../models/role.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/subscription_service.dart';
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -216,6 +217,12 @@ class GoalsScreen extends ConsumerWidget {
   }
 
   void _showCreateGoalSheet(BuildContext context, WidgetRef ref) {
+    final sub = ref.read(subscriptionProvider);
+    final goals = ref.read(_goalsProvider).valueOrNull ?? [];
+    if (!sub.isPro && goals.isNotEmpty) {
+      context.push('/pro');
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

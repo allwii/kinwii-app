@@ -5,9 +5,12 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
+from app.middleware.subscription_middleware import get_user_tier
 from app.models.goal import QuarterlyGoal
 from app.models.user import User
 from app.schemas.goal import GoalCreate, GoalResponse, GoalUpdate
+
+FREE_GOAL_LIMIT = 1
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -39,7 +42,19 @@ async def create_goal(
     body: GoalCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    tier: str = Depends(get_user_tier),
 ):
+    if tier != "pro":
+        existing_count = (
+            db.query(QuarterlyGoal)
+            .filter(QuarterlyGoal.user_id == current_user.id)
+            .count()
+        )
+        if existing_count >= FREE_GOAL_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail="Free plan is limited to 1 goal. Upgrade to Pro for unlimited goals.",
+            )
     goal = QuarterlyGoal(user_id=current_user.id, **body.model_dump())
     db.add(goal)
     db.commit()

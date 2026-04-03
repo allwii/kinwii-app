@@ -1,0 +1,67 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../features/auth/presentation/screens/login_screen.dart';
+
+class SubscriptionStatus {
+  final String tier;
+  final bool isTrial;
+  final DateTime? trialEndDate;
+  final DateTime? subscriptionExpiresAt;
+
+  const SubscriptionStatus({
+    required this.tier,
+    required this.isTrial,
+    this.trialEndDate,
+    this.subscriptionExpiresAt,
+  });
+
+  bool get isPro => tier == 'pro';
+
+  int get trialDaysRemaining {
+    if (!isTrial || trialEndDate == null) return 0;
+    final remaining = trialEndDate!.difference(DateTime.now()).inDays;
+    return remaining.clamp(0, 999);
+  }
+
+  factory SubscriptionStatus.fromJson(Map<String, dynamic> json) {
+    return SubscriptionStatus(
+      tier: json['tier'] as String,
+      isTrial: json['is_trial'] as bool,
+      trialEndDate: json['trial_end_date'] != null
+          ? DateTime.parse(json['trial_end_date'] as String)
+          : null,
+      subscriptionExpiresAt: json['subscription_expires_at'] != null
+          ? DateTime.parse(json['subscription_expires_at'] as String)
+          : null,
+    );
+  }
+
+  static const free = SubscriptionStatus(tier: 'free', isTrial: false);
+}
+
+/// Provider for the current subscription status.
+/// Fetches from the backend and caches the result.
+final subscriptionProvider =
+    StateNotifierProvider<SubscriptionNotifier, SubscriptionStatus>(
+  (ref) => SubscriptionNotifier(ref),
+);
+
+class SubscriptionNotifier extends StateNotifier<SubscriptionStatus> {
+  SubscriptionNotifier(this._ref) : super(SubscriptionStatus.free) {
+    refresh();
+  }
+
+  final Ref _ref;
+
+  Future<void> refresh() async {
+    try {
+      final api = _ref.read(apiServiceProvider);
+      final response = await api.get('/subscription/status');
+      state = SubscriptionStatus.fromJson(response.data);
+    } on DioException {
+      // If not logged in or network error, default to free
+      state = SubscriptionStatus.free;
+    }
+  }
+}

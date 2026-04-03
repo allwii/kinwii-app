@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes_ai import router as ai_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_coach import router as coach_router
+from app.api.routes_subscription import router as subscription_router
 from app.api.routes_daily import router as daily_router
 from app.api.routes_goals import router as goals_router
 from app.api.routes_mission import router as mission_router
@@ -30,6 +31,7 @@ app.include_router(daily_router)
 app.include_router(reflection_router)
 app.include_router(ai_router)
 app.include_router(coach_router)
+app.include_router(subscription_router)
 
 
 @app.get("/health")

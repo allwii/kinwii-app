@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
+from app.middleware.subscription_middleware import require_pro
 from app.models.coach_message import CoachMessage
 from app.models.user import User
 from app.schemas.coach import CoachMessageResponse, CoachMessageSend, CoachReply
@@ -35,7 +36,7 @@ async def list_messages(
 async def send_message(
     body: CoachMessageSend,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro),
     ai: AIService = Depends(get_ai_service),
 ):
     # Store user message

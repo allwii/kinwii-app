@@ -9,6 +9,7 @@ import '../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../features/reflect/presentation/screens/reflect_screen.dart';
 import '../features/coach/presentation/screens/coach_screen.dart';
 import '../features/reflect/presentation/screens/weekly_review_screen.dart';
+import '../features/subscription/presentation/screens/paywall_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/today/presentation/screens/today_screen.dart';
 import '../features/week/presentation/screens/week_screen.dart';
@@ -60,6 +61,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/coach',
         builder: (context, state) => const CoachScreen(),
+      ),
+      GoRoute(
+        path: '/pro',
+        builder: (context, state) => const PaywallScreen(),
       ),
       GoRoute(
         path: '/reflect/review/:id',

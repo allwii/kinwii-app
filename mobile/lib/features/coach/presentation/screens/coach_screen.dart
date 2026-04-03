@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../models/coach_message.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/subscription_service.dart';
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -133,6 +134,57 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sub = ref.watch(subscriptionProvider);
+
+    if (!sub.isPro) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.content),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.psychology,
+                    size: 48, color: AppColors.kiwi400),
+                const SizedBox(height: 16),
+                Text(
+                  'Growth Coach',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: AppColors.content,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Get personalized coaching based on your goals, reflections, and progress.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.contentSecondary,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.push('/pro'),
+                    child: const Text('Unlock with Pro'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final chatState = ref.watch(_messagesProvider);
 
     // Auto-scroll when messages change

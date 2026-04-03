@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../services/subscription_service.dart';
 
 final authServiceProvider = Provider((ref) => AuthService());
 final apiServiceProvider = Provider((ref) {
@@ -37,6 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       });
       final token = response.data['access_token'];
       await ref.read(authServiceProvider).setToken(token);
+      await ref.read(subscriptionProvider.notifier).refresh();
       if (mounted) {
         final onboardingComplete =
             await ref.read(authServiceProvider).isOnboardingComplete();
