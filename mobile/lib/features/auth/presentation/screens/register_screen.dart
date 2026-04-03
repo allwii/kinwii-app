@@ -27,19 +27,57 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     try {
+      final auth = ref.read(authServiceProvider);
       final api = ref.read(apiServiceProvider);
+
+      // 1. Create account
       final response = await api.post('/auth/register', data: {
         'email': _emailController.text.trim(),
         'password': _passwordController.text,
       });
       final token = response.data['access_token'];
-      await ref.read(authServiceProvider).setToken(token);
-      if (mounted) context.go('/onboarding');
+      await auth.setToken(token);
+
+      // 2. Submit pending onboarding data collected before signup
+      final pending = await auth.getPendingOnboarding();
+      if (pending != null) {
+        await _submitOnboardingData(api, pending);
+        await auth.clearPendingOnboarding();
+      }
+
+      await auth.setOnboardingComplete();
+      if (mounted) context.go('/today');
     } catch (e) {
-      setState(() => _error = 'Registration failed. Email may already be in use.');
+      setState(
+          () => _error = 'Registration failed. Email may already be in use.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _submitOnboardingData(dynamic api, Map<String, dynamic> data) async {
+    // Save mission if provided
+    final mission = data['mission'] as String? ?? '';
+    if (mission.isNotEmpty) {
+      await api.put('/mission', data: {'statement': mission});
+    }
+
+    // Create quarterly goal
+    final goalResponse = await api.post('/goals', data: {
+      'title': data['goal_title'],
+      'why': data['goal_why'] ?? '',
+      'start_date': data['start_date'],
+      'end_date': data['end_date'],
+    });
+
+    final goalId = goalResponse.data['id'] as String;
+
+    // Create first weekly plan
+    await api.post('/week', data: {
+      'quarter_id': goalId,
+      'week_start_date': data['week_start_date'],
+      'intent': data['intent'],
+    });
   }
 
   @override
@@ -60,12 +98,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             children: [
               const Spacer(),
               Text(
-                'Create account',
+                'Almost there!',
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 8),
               Text(
-                'Start your intentional living journey',
+                'Create an account to save your plan.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppColors.contentSecondary,
                     ),
@@ -73,6 +111,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               const SizedBox(height: 32),
               TextField(
                 controller: _emailController,
+                autofocus: true,
                 decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,

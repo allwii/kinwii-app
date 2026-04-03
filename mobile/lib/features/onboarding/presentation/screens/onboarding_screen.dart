@@ -1,4 +1,4 @@
-// OnboardingScreen - Under-3-minute setup flow.
+// OnboardingScreen - Under-3-minute setup flow (shown before signup).
 // Usage: Registered as /onboarding route (no shell).
 //
 // Steps:
@@ -6,9 +6,9 @@
 //   2. Write your mission statement (optional)
 //   3. Enter goal title (min 10 chars to proceed)
 //   4. Write why it matters (optional)
-//   5. Set first weekly intent → "Start my week"
+//   5. Set first weekly intent → "Create account"
 //
-// On completion: PUT /mission + POST /goals + POST /week → navigate /today.
+// On completion: saves data locally → navigates to /auth/register.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,7 +66,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   // Step 5
   final _intentController = TextEditingController();
 
-  bool _isLoading = false;
   String? _error;
 
   @override
@@ -110,53 +109,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _complete() async {
     if (!_canAdvance()) return;
-    setState(() {
-      _isLoading = true;
-      _error = null;
+
+    final auth = ref.read(authServiceProvider);
+    final start = _quarterStart(_selectedYear, _selectedQuarter);
+    final end = _quarterEnd(_selectedYear, _selectedQuarter);
+    final weekStart = _mondayOfCurrentWeek();
+
+    // Save onboarding answers locally — they'll be submitted after signup.
+    await auth.savePendingOnboarding({
+      'mission': _missionController.text.trim(),
+      'goal_title': _goalTitleController.text.trim(),
+      'goal_why': _whyController.text.trim(),
+      'quarter': _selectedQuarter,
+      'year': _selectedYear,
+      'start_date': DateFormat('yyyy-MM-dd').format(start),
+      'end_date': DateFormat('yyyy-MM-dd').format(end),
+      'week_start_date': DateFormat('yyyy-MM-dd').format(weekStart),
+      'intent': _intentController.text.trim(),
     });
+    await auth.setOnboardingSeen();
 
-    try {
-      final api = ref.read(apiServiceProvider);
-      final auth = ref.read(authServiceProvider);
-
-      // Save mission if provided
-      final missionText = _missionController.text.trim();
-      if (missionText.isNotEmpty) {
-        await api.put('/mission', data: {'statement': missionText});
-      }
-
-      final start = _quarterStart(_selectedYear, _selectedQuarter);
-      final end = _quarterEnd(_selectedYear, _selectedQuarter);
-
-      // POST /goals
-      final goalResponse = await api.post('/goals', data: {
-        'title': _goalTitleController.text.trim(),
-        'why': _whyController.text.trim(),
-        'start_date': DateFormat('yyyy-MM-dd').format(start),
-        'end_date': DateFormat('yyyy-MM-dd').format(end),
-      });
-
-      final goalId = goalResponse.data['id'] as String;
-
-      // POST /week
-      final weekStart = _mondayOfCurrentWeek();
-      await api.post('/week', data: {
-        'quarter_id': goalId,
-        'week_start_date': DateFormat('yyyy-MM-dd').format(weekStart),
-        'intent': _intentController.text.trim(),
-      });
-
-      await auth.setOnboardingComplete();
-
-      if (mounted) context.go('/today');
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _error = 'Something went wrong. Please try again.';
-        });
-      }
-    }
+    if (mounted) context.go('/auth/register');
   }
 
   DateTime _mondayOfCurrentWeek() {
@@ -218,45 +191,50 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
             // Navigation buttons
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.kiwi400,
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              child: Row(
+                children: [
+                  if (_currentPage > 0)
+                    Expanded(
+                      flex: 1,
+                      child: OutlinedButton(
+                        onPressed: () => _goToPage(_currentPage - 1),
+                        child: const Text('Back'),
                       ),
-                    )
-                  : Row(
-                      children: [
-                        if (_currentPage > 0)
-                          Expanded(
-                            flex: 1,
-                            child: OutlinedButton(
-                              onPressed: () => _goToPage(_currentPage - 1),
-                              child: const Text('Back'),
-                            ),
-                          ),
-                        if (_currentPage > 0) const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: _canAdvance()
-                                ? () {
-                                    if (_currentPage < _totalPages - 1) {
-                                      _goToPage(_currentPage + 1);
-                                    } else {
-                                      _complete();
-                                    }
-                                  }
-                                : null,
-                            child: Text(
-                              _currentPage == _totalPages - 1
-                                  ? 'Start my week'
-                                  : 'Continue',
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
+                  if (_currentPage > 0) const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _canAdvance()
+                          ? () {
+                              if (_currentPage < _totalPages - 1) {
+                                _goToPage(_currentPage + 1);
+                              } else {
+                                _complete();
+                              }
+                            }
+                          : null,
+                      child: Text(
+                        _currentPage == _totalPages - 1
+                            ? 'Save & create account'
+                            : 'Continue',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Link for returning users
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Center(
+                child: TextButton(
+                  onPressed: () => context.go('/auth/login'),
+                  child: const Text('Already have an account? Sign in'),
+                ),
+              ),
             ),
           ],
         ),

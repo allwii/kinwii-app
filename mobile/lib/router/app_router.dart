@@ -17,16 +17,28 @@ final routerProvider = Provider<GoRouter>((ref) {
   final authService = ref.read(authServiceProvider);
 
   return GoRouter(
-    initialLocation: '/auth/login',
+    initialLocation: '/onboarding',
     redirect: (context, state) async {
       final isLoggedIn = await authService.isLoggedIn();
-      final isAuthRoute = state.matchedLocation.startsWith('/auth');
-      if (!isLoggedIn && !isAuthRoute) return '/auth/login';
-      if (isLoggedIn && isAuthRoute) {
-        final onboarded = await authService.isOnboardingComplete();
-        return onboarded ? '/today' : '/onboarding';
+      final loc = state.matchedLocation;
+      final isAuthRoute = loc.startsWith('/auth');
+      final isOnboardingRoute = loc == '/onboarding';
+
+      if (isLoggedIn) {
+        // Logged-in users skip auth & onboarding screens
+        if (isAuthRoute || isOnboardingRoute) {
+          final onboarded = await authService.isOnboardingComplete();
+          return onboarded ? '/today' : '/today';
+        }
+        return null;
       }
-      return null;
+
+      // Not logged in — allow auth and onboarding routes
+      if (isAuthRoute || isOnboardingRoute) return null;
+
+      // Not logged in, trying to access app — send to onboarding or login
+      final seen = await authService.isOnboardingSeen();
+      return seen ? '/auth/login' : '/onboarding';
     },
     routes: [
       GoRoute(
