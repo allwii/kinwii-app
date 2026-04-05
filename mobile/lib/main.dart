@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'router/app_router.dart';
+import 'services/cache_service.dart';
 
-void main() {
+final cacheServiceProvider = Provider<CacheService>((ref) => CacheService());
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: KinwiiApp()));
+  final cache = CacheService();
+  await cache.init();
+  runApp(ProviderScope(
+    overrides: [
+      cacheServiceProvider.overrideWithValue(cache),
+    ],
+    child: const KinwiiApp(),
+  ));
 }
 
 class KinwiiApp extends ConsumerWidget {

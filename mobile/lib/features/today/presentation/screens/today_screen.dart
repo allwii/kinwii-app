@@ -14,6 +14,7 @@ import '../../../../models/daily_intent.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../main.dart';
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -22,14 +23,35 @@ import '../../../../features/auth/presentation/screens/login_screen.dart';
 final _weeklyPlanProvider =
     FutureProvider.autoDispose<WeeklyPlan?>((ref) async {
   final api = ref.read(apiServiceProvider);
+  final cache = ref.read(cacheServiceProvider);
+
+  // Return cached data immediately if fresh
+  final cached = cache.get('today_weekly_plan');
+  if (cached != null && cache.isFresh('today_weekly_plan')) {
+    // Still revalidate in background
+    _fetchAndCacheWeeklyPlan(api, cache);
+    return WeeklyPlan.fromJson(cached as Map<String, dynamic>);
+  }
+
+  // No cache or stale — fetch and cache
   try {
-    final response = await api.get('/week/current');
-    if (response.data == null) return null;
-    return WeeklyPlan.fromJson(response.data as Map<String, dynamic>);
+    final plan = await _fetchAndCacheWeeklyPlan(api, cache);
+    return plan;
   } catch (_) {
+    // Fall back to stale cache if network fails
+    if (cached != null) {
+      return WeeklyPlan.fromJson(cached as Map<String, dynamic>);
+    }
     return null;
   }
 });
+
+Future<WeeklyPlan?> _fetchAndCacheWeeklyPlan(dynamic api, dynamic cache) async {
+  final response = await api.get('/week/current');
+  if (response.data == null) return null;
+  await cache.put('today_weekly_plan', response.data, ttlMinutes: 15);
+  return WeeklyPlan.fromJson(response.data as Map<String, dynamic>);
+}
 
 final _todayTasksProvider =
     StateNotifierProvider.autoDispose<_TasksNotifier, AsyncValue<List<Task>>>(
@@ -44,18 +66,36 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
   final Ref _ref;
 
   Future<void> _load() async {
-    state = const AsyncValue.loading();
+    final cache = _ref.read(cacheServiceProvider);
+    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final cacheKey = 'today_tasks_$dateStr';
+
+    // Show cached data instantly
+    final cached = cache.get(cacheKey);
+    if (cached != null) {
+      final list = (cached as List<dynamic>)
+          .map((e) => Task.fromJson(e as Map<String, dynamic>))
+          .toList();
+      state = AsyncValue.data(list);
+    } else {
+      state = const AsyncValue.loading();
+    }
+
+    // Fetch fresh data
     try {
       final api = _ref.read(apiServiceProvider);
-      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final response =
           await api.get('/tasks', queryParameters: {'date': dateStr});
+      await cache.put(cacheKey, response.data, ttlMinutes: 10);
       final list = (response.data as List<dynamic>)
           .map((e) => Task.fromJson(e as Map<String, dynamic>))
           .toList();
       state = AsyncValue.data(list);
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      // Only error if no cached data was shown
+      if (cached == null) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 

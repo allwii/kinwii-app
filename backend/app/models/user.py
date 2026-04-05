@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Column, DateTime, Enum, String, func
+from sqlalchemy import Boolean, Column, DateTime, Enum, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -29,6 +29,18 @@ class User(Base):
     trial_end_date = Column(DateTime(timezone=True), nullable=True)
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
     revenuecat_id = Column(String, nullable=True)
+
+    # Notification fields
+    fcm_token = Column(String, nullable=True)
+    notify_morning_focus = Column(
+        "notify_morning_focus", Boolean, nullable=False, server_default="true"
+    )
+    notify_evening_reflect = Column(
+        "notify_evening_reflect", Boolean, nullable=False, server_default="true"
+    )
+    notify_midweek_progress = Column(
+        "notify_midweek_progress", Boolean, nullable=False, server_default="true"
+    )
 
     mission = relationship("Mission", back_populates="user", uselist=False, cascade="all, delete-orphan")
     roles = relationship("Role", back_populates="user", cascade="all, delete-orphan")

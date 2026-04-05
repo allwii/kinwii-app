@@ -144,6 +144,15 @@ class GoalsScreen extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
+                        onPressed: () => context.push('/analytics'),
+                        icon: const Icon(
+                          Icons.insights_outlined,
+                          color: AppColors.kiwi500,
+                          size: 22,
+                        ),
+                        tooltip: 'Progress',
+                      ),
+                      IconButton(
                         onPressed: () {
                           context.push('/mission').then((_) {
                             ref.invalidate(_missionProvider);
