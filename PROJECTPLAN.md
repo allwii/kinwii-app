@@ -38,10 +38,10 @@ Flutter App → FastAPI Backend → PostgreSQL
 
 | Model | Key Fields |
 |-------|-----------|
-| User | id (UUID), email, hashed_password, created_at |
+| User | id (UUID), email, hashed_password, created_at, subscription_tier, trial dates, fcm_token, notification prefs |
 | QuarterlyGoal | id, user_id FK, title, why, start_date, end_date, progress_percent |
 | WeeklyPlan | id, user_id FK, quarter_id FK, week_start_date, intent, progress_percent |
-| Task | id, user_id FK, weekly_plan_id FK, title, date, completed, energy_type |
+| Task | id, user_id FK, weekly_plan_id FK, title, date, completed, energy_type, description, time, skip_reason |
 | WeeklyReflection | id, user_id FK, weekly_plan_id FK, 4 reflection fields, ai_summary, ai_focus_recommendation |
 
 ---
@@ -103,7 +103,7 @@ Flutter App → FastAPI Backend → PostgreSQL
 | Weekly Review | Guided review wizard | `/reflect/review/:id` |
 | Coach | AI growth coach chat | `/coach` |
 
-Navigation: 4-tab bottom bar (Today, Week, Goals, Reflect) + Coach icon in AppShell
+Navigation: 4-tab bottom bar (Today, Week, Goals, Settings) + Coach icon in Today header
 
 ---
 
@@ -213,7 +213,22 @@ Bonus — Enrich existing AI:
 - [ ] NotificationService scaffold
 - [ ] FCM token storage endpoint
 
-### Phase 12: Polish & Testing
+### Phase 13: UX Improvements ✅
+- [x] Simplified Today view (removed weekly intent, daily intent sections)
+- [x] Task creation with goal picker + auto-create weekly plan
+- [x] Tappable task detail view (Todoist-style inline edit with full-view description)
+- [x] Replaced Reflect tab with Settings tab (reminder time configuration)
+- [x] Local notifications (daily planning, daily reflection, weekly reflection)
+- [x] Weekly view: tappable header week picker, compact day selector, inline day tasks
+- [x] AI suggestions: tappable to create tasks, removed after use
+- [x] Daily reflection wizard (3-step: wins → carry over → tomorrow's focus)
+- [x] Weekly review wizard (3-step: celebrate → reflect 2 questions → AI insights + plan)
+- [x] Goals simplified (removed "Quarterly goals" label, removed Mission from UI)
+- [x] Onboarding simplified (4 steps, removed mission step)
+- [x] Paywall temporarily disabled (code preserved)
+- [x] Square checkmarks throughout
+
+### Phase 14: Polish & Testing
 - [ ] Backend pytest suite (auth, CRUD, ownership, AI mocks)
 - [ ] Flutter unit + widget tests
 - [ ] Animations, loading states, error states

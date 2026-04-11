@@ -1,5 +1,6 @@
-// WeeklyReviewScreen — 4-step guided weekly review flow.
-// Steps: Review tasks → AI Insights → Reflect → Next Week
+// WeeklyReviewScreen — 3-step guided weekly review flow.
+// Steps: Celebrate → Reflect → AI Insights + Plan Next Week
+// Designed to complete in ~10 minutes.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,32 +27,26 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
   final _pageController = PageController();
   int _currentStep = 0;
 
-  // Data loaded in step 1
+  // Data
   WeeklyPlan? _plan;
   List<Task> _completedTasks = [];
   List<Task> _incompleteTasks = [];
   bool _isLoading = true;
   String? _loadError;
 
-  // Carry-forward selections (step 1)
+  // Carry-forward selections
   final Set<String> _carryForwardIds = {};
 
-  // AI insights (step 2)
+  // Reflection (2 questions instead of 4)
+  final _whatWorkedCtrl = TextEditingController();
+  final _whatToChangeCtrl = TextEditingController();
+  bool _isSubmitting = false;
+
+  // AI insights + next week (combined step 3)
   String? _aiSummary;
   String? _aiFocusRec;
   String? _aiPattern;
   bool _isLoadingAi = false;
-
-  // Reflection form (step 3)
-  final _movedNeedleCtrl = TextEditingController();
-  final _drainedEnergyCtrl = TextEditingController();
-  final _stopDoingCtrl = TextEditingController();
-  final _focusNextWeekCtrl = TextEditingController();
-  bool _isSubmittingReflection = false;
-
-  // Next week (step 4)
-  String? _suggestedIntent;
-  bool _isLoadingSuggestion = false;
   final _nextIntentCtrl = TextEditingController();
   bool _isCreatingNextWeek = false;
 
@@ -64,10 +59,8 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
   @override
   void dispose() {
     _pageController.dispose();
-    _movedNeedleCtrl.dispose();
-    _drainedEnergyCtrl.dispose();
-    _stopDoingCtrl.dispose();
-    _focusNextWeekCtrl.dispose();
+    _whatWorkedCtrl.dispose();
+    _whatToChangeCtrl.dispose();
     _nextIntentCtrl.dispose();
     super.dispose();
   }
@@ -110,39 +103,52 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
     setState(() => _currentStep = step);
   }
 
-  // Step 2: Submit reflection + get AI insights
-  Future<void> _submitReflectionAndGetAi() async {
-    final movedNeedle = _movedNeedleCtrl.text.trim();
-    if (movedNeedle.isEmpty) return;
+  Future<void> _submitAndLoadAi() async {
+    final worked = _whatWorkedCtrl.text.trim();
+    if (worked.isEmpty) return;
 
-    setState(() => _isSubmittingReflection = true);
-
+    setState(() => _isSubmitting = true);
     try {
       final api = ref.read(apiServiceProvider);
 
-      // POST reflection
+      // Submit reflection (map 2 fields to existing 4-field model)
       final reflResp = await api.post('/reflection', data: {
         'weekly_plan_id': widget.weeklyPlanId,
-        'moved_needle': movedNeedle,
-        'drained_energy': _drainedEnergyCtrl.text.trim(),
-        'stop_doing': _stopDoingCtrl.text.trim(),
-        'focus_next_week': _focusNextWeekCtrl.text.trim(),
+        'moved_needle': worked,
+        'focus_next_week': _whatToChangeCtrl.text.trim(),
       });
 
       final reflId = reflResp.data['id'] as String;
       if (!mounted) return;
       setState(() {
-        _isSubmittingReflection = false;
+        _isSubmitting = false;
         _isLoadingAi = true;
       });
 
-      // Move to AI step immediately
+      // Move to step 3 immediately
       _goToStep(2);
 
-      // POST AI summary
-      final aiResp = await api.post('/ai/summarize-reflection', data: {
+      // Load AI insights + suggested intent in parallel
+      final aiFuture = api.post('/ai/summarize-reflection', data: {
         'reflection_id': reflId,
       });
+
+      Future<void>? intentFuture;
+      if (_plan?.quarterId != null) {
+        intentFuture = api.post('/ai/suggest-intent', data: {
+          'goal_id': _plan!.quarterId,
+          'previous_plan_id': widget.weeklyPlanId,
+        }).then((resp) {
+          if (!mounted) return;
+          final intent = resp.data['suggested_intent'] as String? ?? '';
+          setState(() {
+            _nextIntentCtrl.text = intent;
+          });
+        }).catchError((_) {});
+      }
+
+      final aiResp = await aiFuture;
+      await intentFuture;
 
       if (!mounted) return;
       setState(() {
@@ -154,32 +160,9 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _isSubmittingReflection = false;
+        _isSubmitting = false;
         _isLoadingAi = false;
       });
-    }
-  }
-
-  // Step 4: Suggest intent for next week
-  Future<void> _loadSuggestedIntent() async {
-    if (_suggestedIntent != null || _isLoadingSuggestion) return;
-    setState(() => _isLoadingSuggestion = true);
-    try {
-      final api = ref.read(apiServiceProvider);
-      final resp = await api.post('/ai/suggest-intent', data: {
-        'goal_id': _plan!.quarterId,
-        'previous_plan_id': widget.weeklyPlanId,
-      });
-      if (!mounted) return;
-      final intent = resp.data['suggested_intent'] as String? ?? '';
-      setState(() {
-        _suggestedIntent = intent;
-        _nextIntentCtrl.text = intent;
-        _isLoadingSuggestion = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isLoadingSuggestion = false);
     }
   }
 
@@ -212,6 +195,20 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
         });
       }
 
+      // Create a starter task from AI focus recommendation (if available)
+      if (_aiFocusRec != null && _aiFocusRec!.isNotEmpty) {
+        try {
+          await api.post('/tasks', data: {
+            'weekly_plan_id': newPlanId,
+            'title': _aiFocusRec,
+            'date': nextMondayStr,
+            'energy_type': 'deep',
+          });
+        } catch (_) {
+          // Non-critical — don't block navigation
+        }
+      }
+
       if (!mounted) return;
       context.go('/today');
     } catch (_) {
@@ -239,9 +236,22 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
               ?.copyWith(color: AppColors.content),
         ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: Text(
+                '~10 min',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.contentTertiary,
+                    ),
+              ),
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
-          child: _StepIndicator(current: _currentStep, total: 4),
+          child: _StepIndicator(current: _currentStep, total: 3),
         ),
       ),
       body: _isLoading
@@ -254,7 +264,8 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   onPageChanged: (i) => setState(() => _currentStep = i),
                   children: [
-                    _Step1Review(
+                    // Step 1: Celebrate
+                    _CelebrateStep(
                       plan: _plan!,
                       completedTasks: _completedTasks,
                       incompleteTasks: _incompleteTasks,
@@ -268,32 +279,26 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
                       }),
                       onNext: () => _goToStep(1),
                     ),
-                    _Step2Reflect(
-                      movedNeedleCtrl: _movedNeedleCtrl,
-                      drainedEnergyCtrl: _drainedEnergyCtrl,
-                      stopDoingCtrl: _stopDoingCtrl,
-                      focusNextWeekCtrl: _focusNextWeekCtrl,
-                      isSubmitting: _isSubmittingReflection,
-                      onSubmit: _submitReflectionAndGetAi,
+
+                    // Step 2: Reflect (2 questions)
+                    _ReflectStep(
+                      whatWorkedCtrl: _whatWorkedCtrl,
+                      whatToChangeCtrl: _whatToChangeCtrl,
+                      isSubmitting: _isSubmitting,
+                      onSubmit: _submitAndLoadAi,
                       onBack: () => _goToStep(0),
                     ),
-                    _Step3AiInsights(
-                      isLoading: _isLoadingAi,
+
+                    // Step 3: AI Insights + Plan Next Week
+                    _InsightsAndPlanStep(
+                      isLoadingAi: _isLoadingAi,
                       summary: _aiSummary,
                       focusRec: _aiFocusRec,
                       pattern: _aiPattern,
-                      onNext: () {
-                        _loadSuggestedIntent();
-                        _goToStep(3);
-                      },
-                      onBack: () => _goToStep(1),
-                    ),
-                    _Step4NextWeek(
-                      isLoadingSuggestion: _isLoadingSuggestion,
                       intentCtrl: _nextIntentCtrl,
                       isCreating: _isCreatingNextWeek,
                       onFinish: _createNextWeek,
-                      onBack: () => _goToStep(2),
+                      onBack: () => _goToStep(1),
                     ),
                   ],
                 ),
@@ -317,7 +322,12 @@ class _StepIndicator extends StatelessWidget {
         return Expanded(
           child: Container(
             height: 4,
-            color: i <= current ? AppColors.kiwi400 : AppColors.borderSubtle,
+            margin: EdgeInsets.only(right: i < total - 1 ? 2 : 0),
+            decoration: BoxDecoration(
+              color:
+                  i <= current ? AppColors.kiwi400 : AppColors.borderSubtle,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
         );
       }),
@@ -326,11 +336,11 @@ class _StepIndicator extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1: Review tasks
+// Step 1: Celebrate — visual progress + wins + carry-forward
 // ---------------------------------------------------------------------------
 
-class _Step1Review extends StatelessWidget {
-  const _Step1Review({
+class _CelebrateStep extends StatelessWidget {
+  const _CelebrateStep({
     required this.plan,
     required this.completedTasks,
     required this.incompleteTasks,
@@ -343,173 +353,181 @@ class _Step1Review extends StatelessWidget {
   final List<Task> completedTasks;
   final List<Task> incompleteTasks;
   final Set<String> carryForwardIds;
-  final ValueChanged<String> onToggleCarry;
+  final void Function(String id) onToggleCarry;
   final VoidCallback onNext;
-
-  int get _total => completedTasks.length + incompleteTasks.length;
-  int get _completionPct =>
-      _total == 0 ? 0 : (completedTasks.length * 100 ~/ _total);
 
   @override
   Widget build(BuildContext context) {
+    final total = completedTasks.length + incompleteTasks.length;
+    final pct = total > 0
+        ? (completedTasks.length / total * 100).round()
+        : 0;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Progress summary
           Text(
-            'How did your week go?',
-            style: Theme.of(context)
-                .textTheme
-                .headlineMedium
-                ?.copyWith(color: AppColors.content),
+            'This week\'s progress',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.content,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                '${completedTasks.length}',
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      color: AppColors.kiwi500,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              Text(
+                ' of $total tasks ($pct%)',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.contentSecondary,
+                    ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
-          Text(
-            'Intent: ${plan.intent}',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppColors.contentSecondary),
-          ),
-          const SizedBox(height: 20),
-
-          // Completion summary card
-          KinwiiCard(
-            color: AppColors.kiwi50,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      '$_completionPct%',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineLarge
-                          ?.copyWith(
-                            color: AppColors.kiwi600,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${completedTasks.length} of $_total tasks completed',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppColors.content),
-                          ),
-                          const SizedBox(height: 4),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: _total == 0
-                                  ? 0
-                                  : completedTasks.length / _total,
-                              backgroundColor: AppColors.borderSubtle,
-                              valueColor: const AlwaysStoppedAnimation(
-                                  AppColors.kiwi400),
-                              minHeight: 6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: total > 0 ? completedTasks.length / total : 0,
+              minHeight: 8,
+              backgroundColor: AppColors.surfaceAlt,
+              color: AppColors.kiwi400,
             ),
           ),
 
-          // Completed tasks
+          // Wins
           if (completedTasks.isNotEmpty) ...[
             const SizedBox(height: 20),
             Text(
-              'Completed',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelLarge
-                  ?.copyWith(color: AppColors.kiwi600),
+              'Wins',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.kiwi600,
+                  ),
             ),
             const SizedBox(height: 8),
-            ...completedTasks.map((t) => Padding(
+            ...completedTasks.take(5).map((t) => Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
                     children: [
                       const Icon(Icons.check_circle,
-                          size: 18, color: AppColors.kiwi400),
+                          size: 18, color: AppColors.kiwi500),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          t.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: AppColors.content),
-                        ),
+                        child: Text(t.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: AppColors.content)),
                       ),
                     ],
                   ),
                 )),
+            if (completedTasks.length > 5)
+              Text(
+                '+${completedTasks.length - 5} more',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.contentTertiary,
+                    ),
+              ),
           ],
 
-          // Incomplete tasks — with carry-forward checkboxes
+          // Carry forward
           if (incompleteTasks.isNotEmpty) ...[
             const SizedBox(height: 20),
             Text(
-              'Incomplete — carry forward?',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelLarge
-                  ?.copyWith(color: AppColors.contentSecondary),
+              'Carry forward?',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.contentSecondary,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tap to keep or drop each task.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
             ),
             const SizedBox(height: 8),
-            ...incompleteTasks.map((t) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: InkWell(
-                    onTap: () => onToggleCarry(t.id),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            carryForwardIds.contains(t.id)
-                                ? Icons.check_box
-                                : Icons.check_box_outline_blank,
-                            size: 20,
-                            color: carryForwardIds.contains(t.id)
-                                ? AppColors.kiwi500
-                                : AppColors.contentTertiary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              t.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: AppColors.content),
-                            ),
-                          ),
-                          _EnergyPill(type: t.energyType),
-                        ],
+            ...incompleteTasks.map((t) {
+              final carry = carryForwardIds.contains(t.id);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: GestureDetector(
+                  onTap: () => onToggleCarry(t.id),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: carry ? Colors.white : AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: carry
+                            ? AppColors.kiwi300
+                            : AppColors.borderSubtle,
                       ),
                     ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          carry
+                              ? Icons.arrow_forward_rounded
+                              : Icons.close_rounded,
+                          size: 16,
+                          color: carry
+                              ? AppColors.kiwi500
+                              : AppColors.contentTertiary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            t.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: carry
+                                      ? AppColors.content
+                                      : AppColors.contentTertiary,
+                                  decoration: carry
+                                      ? null
+                                      : TextDecoration.lineThrough,
+                                ),
+                          ),
+                        ),
+                        Text(
+                          carry ? 'Keep' : 'Drop',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: carry
+                                    ? AppColors.kiwi600
+                                    : AppColors.contentTertiary,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
+              );
+            }),
           ],
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: onNext,
-              child: const Text('Continue to reflection'),
+              child: const Text('Continue'),
             ),
           ),
         ],
@@ -519,24 +537,20 @@ class _Step1Review extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: Reflect
+// Step 2: Reflect — 2 focused questions
 // ---------------------------------------------------------------------------
 
-class _Step2Reflect extends StatelessWidget {
-  const _Step2Reflect({
-    required this.movedNeedleCtrl,
-    required this.drainedEnergyCtrl,
-    required this.stopDoingCtrl,
-    required this.focusNextWeekCtrl,
+class _ReflectStep extends StatelessWidget {
+  const _ReflectStep({
+    required this.whatWorkedCtrl,
+    required this.whatToChangeCtrl,
     required this.isSubmitting,
     required this.onSubmit,
     required this.onBack,
   });
 
-  final TextEditingController movedNeedleCtrl;
-  final TextEditingController drainedEnergyCtrl;
-  final TextEditingController stopDoingCtrl;
-  final TextEditingController focusNextWeekCtrl;
+  final TextEditingController whatWorkedCtrl;
+  final TextEditingController whatToChangeCtrl;
   final bool isSubmitting;
   final VoidCallback onSubmit;
   final VoidCallback onBack;
@@ -549,53 +563,66 @@ class _Step2Reflect extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Reflect on your week',
-            style: Theme.of(context)
-                .textTheme
-                .headlineMedium
-                ?.copyWith(color: AppColors.content),
+            'Quick reflection',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.content,
+                ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Take a moment before moving forward.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppColors.contentSecondary),
+            'Two questions — be honest, be brief.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
           ),
           const SizedBox(height: 20),
-          _QuestionField(
-            question: 'What moved the needle?',
-            controller: movedNeedleCtrl,
-            hint: 'e.g. Finished the feature spec',
+          Text(
+            'What worked well this week?',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppColors.content,
+                ),
           ),
-          const SizedBox(height: 14),
-          _QuestionField(
-            question: 'What drained energy?',
-            controller: drainedEnergyCtrl,
-            hint: 'e.g. Too many status meetings',
+          const SizedBox(height: 8),
+          TextField(
+            controller: whatWorkedCtrl,
+            autofocus: true,
+            maxLines: 3,
+            minLines: 2,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Stayed focused on the proposal, shipped on time',
+            ),
           ),
-          const SizedBox(height: 14),
-          _QuestionField(
-            question: 'What should you stop doing?',
-            controller: stopDoingCtrl,
-            hint: 'e.g. Checking email first thing',
+          const SizedBox(height: 20),
+          Text(
+            'What\'s one thing to change next week?',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppColors.content,
+                ),
           ),
-          const SizedBox(height: 14),
-          _QuestionField(
-            question: 'What deserves more focus?',
-            controller: focusNextWeekCtrl,
-            hint: 'e.g. Deep work blocks',
+          const SizedBox(height: 8),
+          TextField(
+            controller: whatToChangeCtrl,
+            maxLines: 3,
+            minLines: 2,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Block 2 hours of focus time each morning',
+            ),
           ),
           const SizedBox(height: 28),
           Row(
             children: [
-              TextButton(
-                onPressed: onBack,
-                child: const Text('Back'),
+              Expanded(
+                flex: 1,
+                child: OutlinedButton(
+                  onPressed: onBack,
+                  child: const Text('Back'),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
+                flex: 2,
                 child: ElevatedButton(
                   onPressed: isSubmitting ? null : onSubmit,
                   child: isSubmitting
@@ -607,7 +634,7 @@ class _Step2Reflect extends StatelessWidget {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Get AI insights'),
+                      : const Text('Get insights'),
                 ),
               ),
             ],
@@ -619,206 +646,25 @@ class _Step2Reflect extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: AI Insights
+// Step 3: AI Insights + Plan Next Week (combined)
 // ---------------------------------------------------------------------------
 
-class _Step3AiInsights extends StatelessWidget {
-  const _Step3AiInsights({
-    required this.isLoading,
-    this.summary,
-    this.focusRec,
-    this.pattern,
-    required this.onNext,
-    required this.onBack,
-  });
-
-  final bool isLoading;
-  final String? summary;
-  final String? focusRec;
-  final String? pattern;
-  final VoidCallback onNext;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(color: AppColors.kiwi400),
-            const SizedBox(height: 16),
-            Text(
-              'Analyzing your week...',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppColors.contentSecondary),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_awesome,
-                  size: 22, color: AppColors.kiwi500),
-              const SizedBox(width: 8),
-              Text(
-                'AI insights',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(color: AppColors.content),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          if (summary != null) ...[
-            KinwiiCard(
-              color: AppColors.kiwi50,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Summary',
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(color: AppColors.kiwi600),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    summary!,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.content,
-                          height: 1.6,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          if (focusRec != null) ...[
-            const SizedBox(height: 12),
-            KinwiiCard(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.lightbulb_outline,
-                      size: 18, color: AppColors.kiwi500),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Focus next week',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(color: AppColors.contentSecondary),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          focusRec!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: AppColors.content),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          if (pattern != null) ...[
-            const SizedBox(height: 12),
-            KinwiiCard(
-              color: AppColors.kiwi50,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.trending_up,
-                      size: 18, color: AppColors.kiwi500),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Pattern noticed',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(color: AppColors.kiwi600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          pattern!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: AppColors.content,
-                                height: 1.5,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          const SizedBox(height: 28),
-          Row(
-            children: [
-              TextButton(
-                onPressed: onBack,
-                child: const Text('Back'),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: onNext,
-                  child: const Text('Plan next week'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Step 4: Next Week
-// ---------------------------------------------------------------------------
-
-class _Step4NextWeek extends StatelessWidget {
-  const _Step4NextWeek({
-    required this.isLoadingSuggestion,
+class _InsightsAndPlanStep extends StatelessWidget {
+  const _InsightsAndPlanStep({
+    required this.isLoadingAi,
+    required this.summary,
+    required this.focusRec,
+    required this.pattern,
     required this.intentCtrl,
     required this.isCreating,
     required this.onFinish,
     required this.onBack,
   });
 
-  final bool isLoadingSuggestion;
+  final bool isLoadingAi;
+  final String? summary;
+  final String? focusRec;
+  final String? pattern;
   final TextEditingController intentCtrl;
   final bool isCreating;
   final VoidCallback onFinish;
@@ -832,151 +678,176 @@ class _Step4NextWeek extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Set next week\'s intent',
-            style: Theme.of(context)
-                .textTheme
-                .headlineMedium
-                ?.copyWith(color: AppColors.content),
+            'Insights & next week',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.content,
+                ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'What one thing will make next week count?',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppColors.contentSecondary),
-          ),
-          const SizedBox(height: 24),
-          if (isLoadingSuggestion)
+          const SizedBox(height: 16),
+
+          // AI loading state
+          if (isLoadingAi)
             const Padding(
-              padding: EdgeInsets.only(bottom: 16),
-              child: Row(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(color: AppColors.kiwi400),
+                    SizedBox(height: 12),
+                    Text('Analyzing your week...'),
+                  ],
+                ),
+              ),
+            ),
+
+          // AI Summary
+          if (summary != null) ...[
+            KinwiiCard(
+              color: AppColors.kiwi50,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.kiwi400,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.auto_awesome,
+                          size: 16, color: AppColors.kiwi600),
+                      const SizedBox(width: 6),
+                      Text(
+                        'AI Summary',
+                        style:
+                            Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: AppColors.kiwi600,
+                                ),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: 10),
-                  Text(
-                    'AI is suggesting an intent...',
-                    style: TextStyle(
-                      color: AppColors.contentSecondary,
-                      fontSize: 13,
-                    ),
-                  ),
+                  const SizedBox(height: 8),
+                  Text(summary!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppColors.content)),
                 ],
               ),
             ),
-          TextField(
-            controller: intentCtrl,
-            maxLines: 3,
-            minLines: 2,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              hintText: 'e.g. Ship the checkout flow and write tests',
-              hintStyle: TextStyle(color: AppColors.contentTertiary),
-              labelText: 'Weekly intent',
+            const SizedBox(height: 12),
+          ],
+
+          // Focus recommendation
+          if (focusRec != null) ...[
+            KinwiiCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.lightbulb_outline,
+                          size: 16, color: AppColors.kiwi500),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Focus next week',
+                        style:
+                            Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: AppColors.kiwi600,
+                                ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(focusRec!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppColors.content)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              TextButton(
-                onPressed: onBack,
-                child: const Text('Back'),
+            const SizedBox(height: 12),
+          ],
+
+          // Pattern insight
+          if (pattern != null) ...[
+            KinwiiCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.trending_up,
+                          size: 16, color: AppColors.kiwi500),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Pattern noticed',
+                        style:
+                            Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: AppColors.kiwi600,
+                                ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(pattern!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppColors.content)),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: isCreating ? null : onFinish,
-                  child: isCreating
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Start next week'),
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // Next week intent
+          if (!isLoadingAi) ...[
+            const Divider(),
+            const SizedBox(height: 16),
+            Text(
+              'Set next week\'s focus',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.content,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: intentCtrl,
+              maxLines: 2,
+              minLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'What will you focus on next week?',
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: OutlinedButton(
+                    onPressed: onBack,
+                    child: const Text('Back'),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: isCreating ? null : onFinish,
+                    child: isCreating
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Finish review'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Shared widgets
-// ---------------------------------------------------------------------------
-
-class _QuestionField extends StatelessWidget {
-  const _QuestionField({
-    required this.question,
-    required this.controller,
-    required this.hint,
-  });
-
-  final String question;
-  final TextEditingController controller;
-  final String hint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          question,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(color: AppColors.content),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          maxLines: 3,
-          minLines: 2,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: AppColors.contentTertiary),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EnergyPill extends StatelessWidget {
-  const _EnergyPill({required this.type});
-  final EnergyType type;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (type) {
-      EnergyType.deep => ('Deep', AppColors.energyDeep),
-      EnergyType.admin => ('Admin', AppColors.energyAdmin),
-      EnergyType.creative => ('Creative', AppColors.energyCreative),
-      EnergyType.personal => ('Personal', AppColors.energyPersonal),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 11, color: AppColors.content),
       ),
     );
   }

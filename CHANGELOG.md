@@ -6,6 +6,63 @@ Format: [category] description — files affected
 
 ---
 
+## 2026-04-11 — Major UX Overhaul
+
+### Added
+
+#### Monetization Foundation
+- [backend] Subscription tier fields on User model (subscription_tier, trial dates, revenuecat_id) — `backend/app/models/user.py`
+- [backend] Subscription middleware (get_user_tier, require_pro) — `backend/app/middleware/subscription_middleware.py`
+- [backend] Subscription routes (GET /subscription/status, POST webhook) — `backend/app/api/routes_subscription.py`
+- [backend] Analytics endpoint (GET /analytics/progress) — `backend/app/api/routes_analytics.py`
+- [backend] Notification routes (register-token, preferences) — `backend/app/api/routes_notifications.py`
+- [flutter] Subscription service + provider — `mobile/lib/services/subscription_service.dart`
+- [flutter] Paywall screen (free vs pro comparison) — `mobile/lib/features/subscription/`
+- [flutter] Cache service (Hive-based stale-while-revalidate) — `mobile/lib/services/cache_service.dart`
+- [flutter] Local notification service — `mobile/lib/services/local_notification_service.dart`
+- [flutter] Analytics screen (rhythm, completion trends, energy breakdown) — `mobile/lib/features/analytics/`
+
+#### Today View Overhaul
+- [flutter] Simplified Today: removed weekly intent, daily intent, reflection prompt sections
+- [flutter] Inline + button next to "Today's focus" (replaced FAB)
+- [flutter] Task creation with goal picker (auto-select if 1 goal, auto-create weekly plan)
+- [flutter] Tappable task detail view: goal chip, checkmark + date/time, inline title edit, expandable description
+- [flutter] AI suggestions tappable to create tasks, removed from list after use
+- [flutter] Daily reflection 3-step wizard: wins → carry over → tomorrow's focus
+- [flutter] Task tiles show goal name (bottom-right) instead of energy type
+- [flutter] Square checkmarks throughout
+
+#### Week View Overhaul
+- [flutter] Tappable week header → date picker to jump to any week
+- [flutter] Compact day selector (replaces tall day grid)
+- [flutter] Inline task list for selected day (replaces bottom sheet)
+- [flutter] AI Align moved inline next to "This week" label
+- [flutter] Weekly review pinned to bottom
+
+#### Weekly Review Redesign
+- [flutter] 3-step wizard (was 4): Celebrate → Reflect (2 questions) → AI Insights + Plan
+- [flutter] Visual progress summary with wins shown first
+- [flutter] Combined AI insights + next week planning in single step
+- [flutter] Time estimate shown ("~10 min")
+- [flutter] Parallel loading of AI insights + suggested intent
+
+#### Other
+- [flutter] Settings tab replaces Reflect tab (reminder time configuration + logout)
+- [flutter] Goals screen simplified (header: "Goals", removed Mission display)
+- [flutter] Onboarding reduced to 4 steps (removed Mission step)
+- [backend] Task model: added description, time, skip_reason fields
+- [backend] Paywall temporarily disabled (code preserved)
+
+### Changed
+- [flutter] Bottom nav: Today, Week, Goals, Settings (was: Today, Week, Goals, Reflect)
+- [flutter] Router: /settings replaces /reflect in ShellRoute, /reflect/review/:id preserved
+- [flutter] Weekly review: 2 reflection questions instead of 4 (what worked + what to change)
+- [backend] New users get 7-day Pro trial on registration
+- [backend] Coach endpoint requires Pro (temporarily bypassed)
+- [backend] Goals limited to 1 for free tier (temporarily bypassed)
+
+---
+
 ## 2026-03-11 — UX Polish (KISS Pass) + Features
 
 ### Added

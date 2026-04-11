@@ -1718,8 +1718,11 @@ class _DailyReflectionWizard extends ConsumerStatefulWidget {
 class _DailyReflectionWizardState
     extends ConsumerState<_DailyReflectionWizard> {
   final _pageController = PageController();
+  final _tomorrowCtrl = TextEditingController();
   int _currentStep = 0;
-  final Map<String, TextEditingController> _reasonControllers = {};
+
+  // Track which incomplete tasks to carry forward
+  late final Set<String> _carryIds;
 
   List<Task> get _completed =>
       widget.tasks.where((t) => t.completed).toList();
@@ -1729,18 +1732,13 @@ class _DailyReflectionWizardState
   @override
   void initState() {
     super.initState();
-    for (final t in _incomplete) {
-      _reasonControllers[t.id] =
-          TextEditingController(text: t.skipReason ?? '');
-    }
+    _carryIds = _incomplete.map((t) => t.id).toSet();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
-    for (final c in _reasonControllers.values) {
-      c.dispose();
-    }
+    _tomorrowCtrl.dispose();
     super.dispose();
   }
 
@@ -1754,20 +1752,49 @@ class _DailyReflectionWizardState
   }
 
   Future<void> _finish() async {
-    // Save all skip reasons
     final notifier = ref.read(_todayTasksProvider.notifier);
+
+    // Drop tasks not carried forward
     for (final t in _incomplete) {
-      final reason = _reasonControllers[t.id]?.text.trim() ?? '';
-      if (reason.isNotEmpty && reason != (t.skipReason ?? '')) {
-        await notifier.updateSkipReason(t.id, reason);
+      if (!_carryIds.contains(t.id)) {
+        await notifier.updateSkipReason(t.id, 'Dropped in daily review');
       }
     }
+
+    // Create tomorrow's focus as a task (if user entered one)
+    final tomorrowText = _tomorrowCtrl.text.trim();
+    if (tomorrowText.isNotEmpty) {
+      try {
+        final api = ref.read(apiServiceProvider);
+        final tomorrow = DateTime.now().add(const Duration(days: 1));
+        final tomorrowStr = DateFormat('yyyy-MM-dd').format(tomorrow);
+
+        // Get current weekly plan for the task link
+        try {
+          final planResp = await api.get('/week/current');
+          if (planResp.data != null) {
+            final planId = planResp.data['id'] as String;
+            await api.post('/tasks', data: {
+              'weekly_plan_id': planId,
+              'title': tomorrowText,
+              'date': tomorrowStr,
+              'energy_type': 'deep',
+            });
+          }
+        } catch (_) {
+          // No weekly plan — skip task creation silently
+        }
+      } catch (_) {
+        // Silent fail — don't block dismiss
+      }
+    }
+
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final totalSteps = _incomplete.isEmpty ? 1 : 2;
+    const totalSteps = 3;
 
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.75,
@@ -1786,11 +1813,21 @@ class _DailyReflectionWizardState
             ),
           ),
 
-          // Step indicator
+          // Step indicator + time estimate
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: _StepBar(
-                currentStep: _currentStep, totalSteps: totalSteps),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+            child: Column(
+              children: [
+                _StepBar(currentStep: _currentStep, totalSteps: totalSteps),
+                const SizedBox(height: 6),
+                Text(
+                  '~1 minute',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.contentTertiary,
+                      ),
+                ),
+              ],
+            ),
           ),
 
           // Pages
@@ -1799,25 +1836,34 @@ class _DailyReflectionWizardState
               controller: _pageController,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                // Step 1: Review completed tasks
-                _ReviewStep(
+                // Step 1: Wins
+                _DailyWinsStep(
                   completed: _completed,
-                  incomplete: _incomplete,
                   totalTasks: widget.tasks.length,
-                  onNext: _incomplete.isNotEmpty
-                      ? () => _goToStep(1)
-                      : _finish,
-                  isLastStep: _incomplete.isEmpty,
+                  onNext: () => _goToStep(1),
                 ),
 
-                // Step 2: Add reasons for incomplete (only if there are incomplete tasks)
-                if (_incomplete.isNotEmpty)
-                  _ReasonsStep(
-                    incomplete: _incomplete,
-                    controllers: _reasonControllers,
-                    onBack: () => _goToStep(0),
-                    onFinish: _finish,
-                  ),
+                // Step 2: Carry over
+                _DailyCarryStep(
+                  incomplete: _incomplete,
+                  carryIds: _carryIds,
+                  onToggleCarry: (id) => setState(() {
+                    if (_carryIds.contains(id)) {
+                      _carryIds.remove(id);
+                    } else {
+                      _carryIds.add(id);
+                    }
+                  }),
+                  onBack: () => _goToStep(0),
+                  onNext: () => _goToStep(2),
+                ),
+
+                // Step 3: Tomorrow's focus
+                _DailyTomorrowStep(
+                  controller: _tomorrowCtrl,
+                  onBack: () => _goToStep(1),
+                  onFinish: _finish,
+                ),
               ],
             ),
           ),
@@ -1827,7 +1873,7 @@ class _DailyReflectionWizardState
   }
 }
 
-// Step indicator bar
+// Step indicator bar (shared by daily + weekly wizards)
 class _StepBar extends StatelessWidget {
   const _StepBar({required this.currentStep, required this.totalSteps});
 
@@ -1854,52 +1900,51 @@ class _StepBar extends StatelessWidget {
   }
 }
 
-// Step 1: Review tasks
-class _ReviewStep extends StatelessWidget {
-  const _ReviewStep({
+// Daily Step 1: Celebrate wins
+class _DailyWinsStep extends StatelessWidget {
+  const _DailyWinsStep({
     required this.completed,
-    required this.incomplete,
     required this.totalTasks,
     required this.onNext,
-    required this.isLastStep,
   });
 
   final List<Task> completed;
-  final List<Task> incomplete;
   final int totalTasks;
   final VoidCallback onNext;
-  final bool isLastStep;
 
   @override
   Widget build(BuildContext context) {
+    final pct = totalTasks > 0 ? (completed.length / totalTasks * 100).round() : 0;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'How did today go?',
+            'Today\'s wins',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: AppColors.content,
                 ),
           ),
           const SizedBox(height: 4),
           Text(
-            '${completed.length} of $totalTasks tasks completed',
+            '${completed.length} of $totalTasks done ($pct%)',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.contentSecondary,
+                  color: AppColors.kiwi600,
+                  fontWeight: FontWeight.w500,
                 ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
-          if (completed.isNotEmpty) ...[
+          if (completed.isEmpty)
             Text(
-              'Completed',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppColors.kiwi600,
+              'No completed tasks yet — that\'s okay. Just keep focusing on it and get it done.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.contentTertiary,
                   ),
-            ),
-            const SizedBox(height: 8),
+            )
+          else
             ...completed.map((t) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
@@ -1908,57 +1953,22 @@ class _ReviewStep extends StatelessWidget {
                           size: 20, color: AppColors.kiwi500),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          t.title,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.contentSecondary,
-                                    decoration: TextDecoration.lineThrough,
-                                  ),
-                        ),
+                        child: Text(t.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: AppColors.content)),
                       ),
                     ],
                   ),
                 )),
-            const SizedBox(height: 16),
-          ],
-
-          if (incomplete.isNotEmpty) ...[
-            Text(
-              'Incomplete',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppColors.contentTertiary,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            ...incomplete.map((t) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.radio_button_unchecked,
-                          size: 20, color: AppColors.contentTertiary),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          t.title,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.content,
-                                  ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
 
           const SizedBox(height: 28),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: onNext,
-              child:
-                  Text(isLastStep ? 'Done' : 'Continue'),
+              child: const Text('Continue'),
             ),
           ),
         ],
@@ -1967,17 +1977,173 @@ class _ReviewStep extends StatelessWidget {
   }
 }
 
-// Step 2: Add reasons for incomplete tasks
-class _ReasonsStep extends StatelessWidget {
-  const _ReasonsStep({
+// Daily Step 2: Carry over or drop incomplete tasks
+class _DailyCarryStep extends StatelessWidget {
+  const _DailyCarryStep({
     required this.incomplete,
-    required this.controllers,
+    required this.carryIds,
+    required this.onToggleCarry,
+    required this.onBack,
+    required this.onNext,
+  });
+
+  final List<Task> incomplete;
+  final Set<String> carryIds;
+  final void Function(String id) onToggleCarry;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    if (incomplete.isEmpty) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'All done!',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppColors.content,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Every task completed. Nice work.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.contentSecondary,
+                  ),
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: onNext,
+                child: const Text('Continue'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'What\'s carrying over?',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.content,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap to keep or drop each task.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 16),
+
+          ...incomplete.map((t) {
+            final carry = carryIds.contains(t.id);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: () => onToggleCarry(t.id),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: carry ? Colors.white : AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: carry
+                          ? AppColors.kiwi300
+                          : AppColors.borderSubtle,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        carry
+                            ? Icons.arrow_forward_rounded
+                            : Icons.close_rounded,
+                        size: 18,
+                        color: carry
+                            ? AppColors.kiwi500
+                            : AppColors.contentTertiary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          t.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: carry
+                                    ? AppColors.content
+                                    : AppColors.contentTertiary,
+                                decoration: carry
+                                    ? null
+                                    : TextDecoration.lineThrough,
+                              ),
+                        ),
+                      ),
+                      Text(
+                        carry ? 'Tomorrow' : 'Drop',
+                        style:
+                            Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: carry
+                                      ? AppColors.kiwi600
+                                      : AppColors.contentTertiary,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: OutlinedButton(
+                  onPressed: onBack,
+                  child: const Text('Back'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: onNext,
+                  child: const Text('Continue'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Daily Step 3: Tomorrow's focus
+class _DailyTomorrowStep extends StatelessWidget {
+  const _DailyTomorrowStep({
+    required this.controller,
     required this.onBack,
     required this.onFinish,
   });
 
-  final List<Task> incomplete;
-  final Map<String, TextEditingController> controllers;
+  final TextEditingController controller;
   final VoidCallback onBack;
   final VoidCallback onFinish;
 
@@ -1989,65 +2155,30 @@ class _ReasonsStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'What happened?',
+            'Tomorrow\'s focus',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: AppColors.content,
                 ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Optional — note why these tasks were incomplete.',
+            'What\'s the one thing that matters most tomorrow?',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.contentSecondary,
                 ),
           ),
-          const SizedBox(height: 20),
-
-          ...incomplete.map((t) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.radio_button_unchecked,
-                            size: 18, color: AppColors.contentTertiary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            t.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppColors.content),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 26),
-                      child: TextField(
-                        controller: controllers[t.id],
-                        style: Theme.of(context).textTheme.bodySmall,
-                        decoration: InputDecoration(
-                          hintText: 'Why? (optional)',
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(
-                                color: AppColors.borderSubtle),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: 2,
+            minLines: 1,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Finish the proposal draft',
+            ),
+          ),
+          const SizedBox(height: 28),
           Row(
             children: [
               Expanded(
