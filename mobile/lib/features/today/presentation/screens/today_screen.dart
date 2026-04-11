@@ -1644,29 +1644,64 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
 // Daily reflection entry card → opens wizard
 // ---------------------------------------------------------------------------
 
-class _DailyReflectionCard extends StatelessWidget {
+class _DailyReflectionCard extends StatefulWidget {
   const _DailyReflectionCard({required this.tasks});
 
   final List<Task> tasks;
 
   @override
+  State<_DailyReflectionCard> createState() => _DailyReflectionCardState();
+}
+
+class _DailyReflectionCardState extends State<_DailyReflectionCard> {
+  bool _completed = false;
+
+  Future<void> _openWizard() async {
+    await showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _DailyReflectionWizard(tasks: widget.tasks),
+    );
+    // Wizard was dismissed — mark as complete
+    if (mounted) setState(() => _completed = true);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final completed = tasks.where((t) => t.completed).length;
-    final total = tasks.length;
+    if (_completed) {
+      return KinwiiCard(
+        onTap: _openWizard,
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle,
+                size: 20, color: AppColors.kiwi500),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Daily reflection complete',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.content,
+                    ),
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                size: 20, color: AppColors.contentTertiary),
+          ],
+        ),
+      );
+    }
+
+    final done = widget.tasks.where((t) => t.completed).length;
+    final total = widget.tasks.length;
 
     return KinwiiCard(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          useSafeArea: true,
-          backgroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          builder: (_) => _DailyReflectionWizard(tasks: tasks),
-        );
-      },
+      onTap: _openWizard,
       color: AppColors.kiwi50,
       child: Row(
         children: [
@@ -1685,7 +1720,7 @@ class _DailyReflectionCard extends StatelessWidget {
                       ),
                 ),
                 Text(
-                  '$completed of $total tasks completed',
+                  '$done of $total tasks completed',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.contentSecondary,
                       ),
@@ -1721,18 +1756,36 @@ class _DailyReflectionWizardState
   final _tomorrowCtrl = TextEditingController();
   int _currentStep = 0;
 
-  // Track which incomplete tasks to carry forward
-  late final Set<String> _carryIds;
+  // Mutable copy of tasks so we can toggle completion inside the wizard
+  late List<Task> _tasks;
 
-  List<Task> get _completed =>
-      widget.tasks.where((t) => t.completed).toList();
-  List<Task> get _incomplete =>
-      widget.tasks.where((t) => !t.completed).toList();
+  // Track which incomplete tasks to carry forward
+  late Set<String> _carryIds;
+
+  List<Task> get _incomplete => _tasks.where((t) => !t.completed).toList();
 
   @override
   void initState() {
     super.initState();
+    _tasks = List<Task>.from(widget.tasks);
     _carryIds = _incomplete.map((t) => t.id).toSet();
+  }
+
+  void _toggleTask(String taskId) {
+    setState(() {
+      final idx = _tasks.indexWhere((t) => t.id == taskId);
+      if (idx != -1) {
+        _tasks[idx] = _tasks[idx].copyWith(completed: !_tasks[idx].completed);
+        // Update carry set: remove from carry if now completed
+        if (_tasks[idx].completed) {
+          _carryIds.remove(taskId);
+        } else {
+          _carryIds.add(taskId);
+        }
+      }
+    });
+    // Also toggle on backend
+    ref.read(_todayTasksProvider.notifier).toggleComplete(taskId);
   }
 
   @override
@@ -1836,10 +1889,10 @@ class _DailyReflectionWizardState
               controller: _pageController,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                // Step 1: Wins
+                // Step 1: Wins (with tappable checkmarks)
                 _DailyWinsStep(
-                  completed: _completed,
-                  totalTasks: widget.tasks.length,
+                  tasks: _tasks,
+                  onToggle: _toggleTask,
                   onNext: () => _goToStep(1),
                 ),
 
@@ -1903,18 +1956,20 @@ class _StepBar extends StatelessWidget {
 // Daily Step 1: Celebrate wins
 class _DailyWinsStep extends StatelessWidget {
   const _DailyWinsStep({
-    required this.completed,
-    required this.totalTasks,
+    required this.tasks,
+    required this.onToggle,
     required this.onNext,
   });
 
-  final List<Task> completed;
-  final int totalTasks;
+  final List<Task> tasks;
+  final void Function(String taskId) onToggle;
   final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
-    final pct = totalTasks > 0 ? (completed.length / totalTasks * 100).round() : 0;
+    final done = tasks.where((t) => t.completed).length;
+    final total = tasks.length;
+    final pct = total > 0 ? (done / total * 100).round() : 0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -1929,39 +1984,69 @@ class _DailyWinsStep extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${completed.length} of $totalTasks done ($pct%)',
+            '$done of $total done ($pct%)',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.kiwi600,
                   fontWeight: FontWeight.w500,
                 ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap to mark tasks done.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.contentTertiary,
+                ),
+          ),
           const SizedBox(height: 16),
 
-          if (completed.isEmpty)
-            Text(
-              'No completed tasks yet — that\'s okay. Just keep focusing on it and get it done.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.contentTertiary,
-                  ),
-            )
-          else
-            ...completed.map((t) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+          ...tasks.map((t) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: GestureDetector(
+                  onTap: () => onToggle(t.id),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle,
-                          size: 20, color: AppColors.kiwi500),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          color: t.completed
+                              ? AppColors.kiwi400
+                              : Colors.white,
+                          border: Border.all(
+                            color: t.completed
+                                ? AppColors.kiwi400
+                                : AppColors.borderSubtle,
+                            width: 2,
+                          ),
+                        ),
+                        child: t.completed
+                            ? const Icon(Icons.check,
+                                size: 14, color: Colors.white)
+                            : null,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(t.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppColors.content)),
+                        child: Text(
+                          t.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: t.completed
+                                    ? AppColors.contentTertiary
+                                    : AppColors.content,
+                                decoration: t.completed
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                        ),
                       ),
                     ],
                   ),
-                )),
+                ),
+              )),
 
           const SizedBox(height: 28),
           SizedBox(
