@@ -12,12 +12,17 @@ class TaskCreate(BaseModel):
     title: str = Field(..., max_length=300)
     date: dt.date
     energy_type: EnergyType = EnergyType.deep
+    description: Optional[str] = None
+    time: Optional[dt.time] = None
 
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=300)
     date: Optional[dt.date] = None
     energy_type: Optional[EnergyType] = None
+    description: Optional[str] = None
+    time: Optional[dt.time] = None
+    skip_reason: Optional[str] = None
 
 
 class CarryForwardRequest(BaseModel):
@@ -34,6 +39,9 @@ class TaskResponse(BaseModel):
     date: dt.date
     completed: bool
     energy_type: EnergyType
+    description: str | None = None
+    time: dt.time | None = None
+    skip_reason: str | None = None
     created_at: dt.datetime
 
     model_config = {"from_attributes": True}

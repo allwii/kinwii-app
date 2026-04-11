@@ -37,7 +37,8 @@ class SubscriptionStatus {
     );
   }
 
-  static const free = SubscriptionStatus(tier: 'free', isTrial: false);
+  // TEMPORARILY DISABLED — change back to 'free' when paywall is ready
+  static const free = SubscriptionStatus(tier: 'pro', isTrial: false);
 }
 
 /// Provider for the current subscription status.

@@ -12,7 +12,7 @@ class AppShell extends StatelessWidget {
     if (location.startsWith('/today')) return 0;
     if (location.startsWith('/week')) return 1;
     if (location.startsWith('/goals')) return 2;
-    if (location.startsWith('/reflect')) return 3;
+    if (location.startsWith('/settings')) return 3;
     return 0;
   }
 
@@ -31,7 +31,7 @@ class AppShell extends StatelessWidget {
             case 2:
               context.go('/goals');
             case 3:
-              context.go('/reflect');
+              context.go('/settings');
           }
         },
         backgroundColor: Colors.white,
@@ -53,9 +53,9 @@ class AppShell extends StatelessWidget {
             label: 'Goals',
           ),
           NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome, color: AppColors.kiwi600),
-            label: 'Reflect',
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings, color: AppColors.kiwi600),
+            label: 'Settings',
           ),
         ],
       ),

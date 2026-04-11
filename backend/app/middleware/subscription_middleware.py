@@ -8,6 +8,9 @@ from app.models.user import SubscriptionTier, User
 
 def _is_pro(user: User) -> bool:
     """Check if a user currently has Pro access (active subscription or trial)."""
+    # TEMPORARILY DISABLED — re-enable when paywall is ready
+    return True
+
     now = datetime.now(timezone.utc)
 
     # Active paid subscription

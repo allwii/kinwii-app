@@ -45,7 +45,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  static const _totalPages = 5;
+  static const _totalPages = 4;
 
   final _pageController = PageController();
   int _currentPage = 0;
@@ -54,16 +54,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _selectedQuarter = _currentQuarter();
   final int _selectedYear = DateTime.now().year;
 
-  // Step 2 — Mission
-  final _missionController = TextEditingController();
-
-  // Step 3
+  // Step 2
   final _goalTitleController = TextEditingController();
 
-  // Step 4
+  // Step 3
   final _whyController = TextEditingController();
 
-  // Step 5
+  // Step 4
   final _intentController = TextEditingController();
 
   String? _error;
@@ -71,7 +68,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   void dispose() {
     _pageController.dispose();
-    _missionController.dispose();
     _goalTitleController.dispose();
     _whyController.dispose();
     _intentController.dispose();
@@ -95,12 +91,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       case 0:
         return true; // quarter always selected
       case 1:
-        return true; // mission is optional
-      case 2:
         return _goalTitleController.text.trim().length >= 10;
-      case 3:
+      case 2:
         return true; // why is optional
-      case 4:
+      case 3:
         return _intentController.text.trim().isNotEmpty;
       default:
         return false;
@@ -117,7 +111,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
     // Save onboarding answers locally — they'll be submitted after signup.
     await auth.savePendingOnboarding({
-      'mission': _missionController.text.trim(),
       'goal_title': _goalTitleController.text.trim(),
       'goal_why': _whyController.text.trim(),
       'quarter': _selectedQuarter,
@@ -161,9 +154,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     selectedQuarter: _selectedQuarter,
                     selectedYear: _selectedYear,
                     onSelect: (q) => setState(() => _selectedQuarter = q),
-                  ),
-                  _Step2Mission(
-                    controller: _missionController,
                   ),
                   _Step3GoalTitle(
                     controller: _goalTitleController,
@@ -378,85 +368,6 @@ class _Step1Quarter extends StatelessWidget {
                 ),
               );
             }),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Step 2 — Mission statement (NEW)
-// ---------------------------------------------------------------------------
-
-class _Step2Mission extends StatelessWidget {
-  const _Step2Mission({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'What is your life mission?',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.content,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Optional — one sentence that captures your life direction.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
-          ),
-          const SizedBox(height: 32),
-          TextField(
-            controller: controller,
-            autofocus: true,
-            maxLines: 3,
-            minLines: 2,
-            maxLength: 500,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Mission statement (optional)',
-              hintText:
-                  'e.g. To build meaningful products that empower people to live with clarity.',
-              alignLabelWithHint: true,
-              counterText: '',
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.kiwi50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.tips_and_updates_outlined,
-                  size: 16,
-                  color: AppColors.kiwi600,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Your mission anchors everything — your goals, roles, and daily focus all connect back to it.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.kiwi700,
-                          height: 1.5,
-                        ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

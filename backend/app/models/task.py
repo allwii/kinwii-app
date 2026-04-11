@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, String, func
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, String, Text, Time, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -33,6 +33,9 @@ class Task(Base):
     date = Column(Date, nullable=False)
     completed = Column(Boolean, default=False)
     energy_type = Column(Enum(EnergyType), default=EnergyType.deep)
+    description = Column(Text, nullable=True)
+    time = Column(Time, nullable=True)
+    skip_reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="tasks")

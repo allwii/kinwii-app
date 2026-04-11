@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -97,6 +98,17 @@ class _AiSuggestionsNotifier extends StateNotifier<_AiState> {
 
   void reset() => state = const _AiState();
 }
+
+final _weekReflectionExistsProvider =
+    FutureProvider.autoDispose.family<bool, String>((ref, planId) async {
+  final api = ref.read(apiServiceProvider);
+  try {
+    await api.get('/reflection/$planId');
+    return true;
+  } catch (_) {
+    return false;
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -372,7 +384,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
               if (isCurrentWeek)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
                     child: planAsync.maybeWhen(
                       data: (plan) => plan == null
                           ? const SizedBox.shrink()
@@ -435,8 +447,19 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                   ),
                 ),
 
-              if (!isCurrentWeek)
-                const SliverToBoxAdapter(child: SizedBox(height: 40)),
+              // Weekly reflection section (always visible when plan exists)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+                  child: planAsync.maybeWhen(
+                    data: (plan) {
+                      if (plan == null) return const SizedBox.shrink();
+                      return _WeeklyReflectionEntry(planId: plan.id);
+                    },
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -584,16 +607,20 @@ class _IntentCard extends StatelessWidget {
                     color: AppColors.content,
                     fontWeight: FontWeight.w500,
                   ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 12),
-            ProgressBar(percent: plan.progressPercent),
-            const SizedBox(height: 6),
-            Text(
-              '${plan.progressPercent}% complete',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.contentSecondary,
-                  ),
-            ),
+            if (plan.progressPercent > 0) ...[
+              const SizedBox(height: 10),
+              ProgressBar(percent: plan.progressPercent),
+              const SizedBox(height: 4),
+              Text(
+                '${plan.progressPercent}% complete',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.contentSecondary,
+                    ),
+              ),
+            ],
           ],
         ],
       ),
@@ -628,16 +655,20 @@ class _IntentCardReadOnly extends StatelessWidget {
                   color: AppColors.content,
                   fontWeight: FontWeight.w500,
                 ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 12),
-          ProgressBar(percent: plan.progressPercent),
-          const SizedBox(height: 6),
-          Text(
-            '${plan.progressPercent}% complete',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
-          ),
+          if (plan.progressPercent > 0) ...[
+            const SizedBox(height: 10),
+            ProgressBar(percent: plan.progressPercent),
+            const SizedBox(height: 4),
+            Text(
+              '${plan.progressPercent}% complete',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentSecondary,
+                  ),
+            ),
+          ],
         ],
       ),
     );
@@ -1268,6 +1299,83 @@ class _DayTasksSheet extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Weekly reflection entry point (shown at bottom of Week screen)
+// ---------------------------------------------------------------------------
+
+class _WeeklyReflectionEntry extends ConsumerWidget {
+  const _WeeklyReflectionEntry({required this.planId});
+
+  final String planId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reflectionAsync = ref.watch(_weekReflectionExistsProvider(planId));
+
+    return reflectionAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (exists) {
+        if (exists) {
+          return KinwiiCard(
+            onTap: () => context.push('/reflect/review/$planId'),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle,
+                    size: 20, color: AppColors.kiwi500),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Weekly reflection complete',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.content,
+                        ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right,
+                    size: 20, color: AppColors.contentTertiary),
+              ],
+            ),
+          );
+        }
+        return KinwiiCard(
+          onTap: () => context.push('/reflect/review/$planId'),
+          color: AppColors.kiwi50,
+          child: Row(
+            children: [
+              const Icon(Icons.auto_awesome_outlined,
+                  size: 20, color: AppColors.kiwi600),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Start weekly review',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.content,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    Text(
+                      'Reflect on your week and plan ahead.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.contentSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  size: 20, color: AppColors.kiwi500),
+            ],
+          ),
+        );
+      },
     );
   }
 }

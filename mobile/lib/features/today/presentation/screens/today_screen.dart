@@ -1,5 +1,5 @@
 // TodayScreen - "What should I focus on right now?"
-// Usage: Registered as /today route inside AppShell's ShellRoute.
+// Simplified: task list + AI suggestions + daily reflection (evening).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +9,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
-import '../../../../core/widgets/progress_bar.dart';
-import '../../../../models/daily_intent.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
@@ -25,20 +23,16 @@ final _weeklyPlanProvider =
   final api = ref.read(apiServiceProvider);
   final cache = ref.read(cacheServiceProvider);
 
-  // Return cached data immediately if fresh
   final cached = cache.get('today_weekly_plan');
   if (cached != null && cache.isFresh('today_weekly_plan')) {
-    // Still revalidate in background
     _fetchAndCacheWeeklyPlan(api, cache);
     return WeeklyPlan.fromJson(cached as Map<String, dynamic>);
   }
 
-  // No cache or stale — fetch and cache
   try {
     final plan = await _fetchAndCacheWeeklyPlan(api, cache);
     return plan;
   } catch (_) {
-    // Fall back to stale cache if network fails
     if (cached != null) {
       return WeeklyPlan.fromJson(cached as Map<String, dynamic>);
     }
@@ -46,7 +40,8 @@ final _weeklyPlanProvider =
   }
 });
 
-Future<WeeklyPlan?> _fetchAndCacheWeeklyPlan(dynamic api, dynamic cache) async {
+Future<WeeklyPlan?> _fetchAndCacheWeeklyPlan(
+    dynamic api, dynamic cache) async {
   final response = await api.get('/week/current');
   if (response.data == null) return null;
   await cache.put('today_weekly_plan', response.data, ttlMinutes: 15);
@@ -70,7 +65,6 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
     final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final cacheKey = 'today_tasks_$dateStr';
 
-    // Show cached data instantly
     final cached = cache.get(cacheKey);
     if (cached != null) {
       final list = (cached as List<dynamic>)
@@ -81,7 +75,6 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
       state = const AsyncValue.loading();
     }
 
-    // Fetch fresh data
     try {
       final api = _ref.read(apiServiceProvider);
       final response =
@@ -92,7 +85,6 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
           .toList();
       state = AsyncValue.data(list);
     } catch (e, st) {
-      // Only error if no cached data was shown
       if (cached == null) {
         state = AsyncValue.error(e, st);
       }
@@ -103,7 +95,6 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
     final current = state.valueOrNull;
     if (current == null) return;
 
-    // Optimistic update
     final idx = current.indexWhere((t) => t.id == taskId);
     if (idx == -1) return;
     final updated = current[idx].copyWith(completed: !current[idx].completed);
@@ -114,7 +105,6 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
       final api = _ref.read(apiServiceProvider);
       await api.patch('/tasks/$taskId/complete');
     } catch (_) {
-      // Revert on failure
       state = AsyncValue.data(current);
     }
   }
@@ -123,6 +113,8 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
     required String weeklyPlanId,
     required String title,
     required EnergyType energyType,
+    String? description,
+    String? time,
   }) async {
     try {
       final api = _ref.read(apiServiceProvider);
@@ -132,105 +124,76 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
         'title': title,
         'date': dateStr,
         'energy_type': energyType.name,
+        if (description != null && description.isNotEmpty)
+          'description': description,
+        if (time != null) 'time': time,
       });
       final newTask = Task.fromJson(response.data as Map<String, dynamic>);
       final current = state.valueOrNull ?? [];
       state = AsyncValue.data([...current, newTask]);
     } catch (_) {
-      // Let caller handle
       rethrow;
+    }
+  }
+
+  Future<void> updateSkipReason(String taskId, String reason) async {
+    try {
+      final api = _ref.read(apiServiceProvider);
+      await api.put('/tasks/$taskId', data: {'skip_reason': reason});
+      final current = state.valueOrNull;
+      if (current != null) {
+        final idx = current.indexWhere((t) => t.id == taskId);
+        if (idx != -1) {
+          final updated = current[idx].copyWith(skipReason: reason);
+          state = AsyncValue.data(List<Task>.from(current)..[idx] = updated);
+        }
+      }
+    } catch (_) {
+      // Silent fail
     }
   }
 
   Future<void> refresh() => _load();
 }
 
-// Daily focus suggestions provider — no autoDispose so the response is cached
-// for the app session. Keyed by (weeklyPlanId, date) so it auto-refreshes on
-// a new day without any manual invalidation.
-final _dailyFocusProvider = FutureProvider
-    .family<Map<String, dynamic>?, (String, String)>((ref, key) async {
-  final (weeklyPlanId, date) = key;
-  final api = ref.read(apiServiceProvider);
-  try {
-    final response = await api.post('/ai/suggest-daily-focus', data: {
-      'weekly_plan_id': weeklyPlanId,
-      'date': date,
-    });
-    return response.data as Map<String, dynamic>;
-  } catch (_) {
-    return null;
-  }
-});
-
-// Daily intent provider — keyed by date string
-final _dailyIntentProvider = StateNotifierProvider.autoDispose
-    .family<_DailyIntentNotifier, AsyncValue<DailyIntent?>, String>(
-  (ref, dateStr) => _DailyIntentNotifier(ref, dateStr),
+// AI daily focus suggestions — stateful so we can remove items after use
+final _dailyFocusProvider = StateNotifierProvider.family<
+    _DailyFocusNotifier, AsyncValue<List<String>>, (String, String)>(
+  (ref, key) => _DailyFocusNotifier(ref, key),
 );
 
-class _DailyIntentNotifier extends StateNotifier<AsyncValue<DailyIntent?>> {
-  _DailyIntentNotifier(this._ref, this._dateStr)
+class _DailyFocusNotifier extends StateNotifier<AsyncValue<List<String>>> {
+  _DailyFocusNotifier(this._ref, this._key)
       : super(const AsyncValue.loading()) {
     _load();
   }
 
   final Ref _ref;
-  final String _dateStr;
+  final (String, String) _key;
 
   Future<void> _load() async {
+    final (weeklyPlanId, date) = _key;
+    final api = _ref.read(apiServiceProvider);
     try {
-      final api = _ref.read(apiServiceProvider);
-      final response =
-          await api.get('/daily', queryParameters: {'date': _dateStr});
-      if (response.data == null) {
-        state = const AsyncValue.data(null);
-      } else {
-        state = AsyncValue.data(
-            DailyIntent.fromJson(response.data as Map<String, dynamic>));
-      }
+      final response = await api.post('/ai/suggest-daily-focus', data: {
+        'weekly_plan_id': weeklyPlanId,
+        'date': date,
+      });
+      final data = response.data as Map<String, dynamic>;
+      final suggestions =
+          (data['suggestions'] as List<dynamic>?)?.cast<String>() ?? [];
+      state = AsyncValue.data(suggestions);
     } catch (_) {
-      state = const AsyncValue.data(null);
+      state = const AsyncValue.data([]);
     }
   }
 
-  Future<void> create(String intent, String? weeklyPlanId) async {
-    final api = _ref.read(apiServiceProvider);
-    final response = await api.post('/daily', data: {
-      'date': _dateStr,
-      'intent': intent,
-      if (weeklyPlanId != null) 'weekly_plan_id': weeklyPlanId,
-    });
-    state = AsyncValue.data(
-        DailyIntent.fromJson(response.data as Map<String, dynamic>));
-  }
-
-  Future<void> updateHonored(String intentId, bool honored, String? note) async {
-    final api = _ref.read(apiServiceProvider);
-    final response = await api.put('/daily/$intentId', data: {
-      'honored': honored,
-      if (note != null) 'note': note,
-    });
-    state = AsyncValue.data(
-        DailyIntent.fromJson(response.data as Map<String, dynamic>));
+  void removeSuggestion(String suggestion) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncValue.data(current.where((s) => s != suggestion).toList());
   }
 }
-
-// AI-suggested daily intent provider
-final _suggestedDailyIntentProvider = FutureProvider
-    .family<String?, (String, String)>((ref, key) async {
-  final (weeklyPlanId, date) = key;
-  final api = ref.read(apiServiceProvider);
-  try {
-    final response = await api.post('/ai/suggest-daily-intent', data: {
-      'weekly_plan_id': weeklyPlanId,
-      'date': date,
-    });
-    return (response.data as Map<String, dynamic>)['daily_intent'] as String?;
-  } catch (_) {
-    return null;
-  }
-});
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -244,47 +207,26 @@ class TodayScreen extends ConsumerWidget {
     final weeklyPlanAsync = ref.watch(_weeklyPlanProvider);
     final tasksAsync = ref.watch(_todayTasksProvider);
     final today = DateTime.now();
+    final isEvening = today.hour >= 17;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: weeklyPlanAsync.maybeWhen(
-        data: (plan) => FloatingActionButton(
-          onPressed: plan == null
-              ? null
-              : () {
-                  final weeklyPlanId = plan.id;
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.white,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(24)),
-                    ),
-                    builder: (_) => _AddTaskSheet(
-                      weeklyPlanId: weeklyPlanId,
-                      notifier: ref.read(_todayTasksProvider.notifier),
-                      onAdded: () async {
-                        await ref
-                            .read(_todayTasksProvider.notifier)
-                            .refresh();
-                      },
-                    ),
-                  );
-                },
-          backgroundColor: AppColors.kiwi400,
-          foregroundColor: Colors.white,
-          child: const Icon(Icons.add),
-        ),
+        data: (plan) => plan == null
+            ? null
+            : FloatingActionButton(
+                onPressed: () => _showAddTaskSheet(context, ref, plan.id),
+                backgroundColor: AppColors.kiwi400,
+                foregroundColor: Colors.white,
+                child: const Icon(Icons.add),
+              ),
         orElse: () => null,
       ),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.kiwi400,
           onRefresh: () async {
-            final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
             ref.invalidate(_weeklyPlanProvider);
-            ref.invalidate(_dailyIntentProvider(today));
             await ref.read(_todayTasksProvider.notifier).refresh();
           },
           child: CustomScrollView(
@@ -319,50 +261,10 @@ class TodayScreen extends ConsumerWidget {
                 ),
               ),
 
-              // Weekly intent card
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: weeklyPlanAsync.when(
-                    loading: () => const _IntentCardSkeleton(),
-                    error: (_, __) => const _IntentCardSkeleton(),
-                    data: (plan) => plan == null
-                        ? const _IntentCardSkeleton()
-                        : _IntentCard(plan: plan),
-                  ),
-                ),
-              ),
-
-              // AI daily focus suggestions
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                  child: weeklyPlanAsync.maybeWhen(
-                    data: (plan) => plan != null
-                        ? _DailyFocusCard(weeklyPlanId: plan.id)
-                        : const SizedBox.shrink(),
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-
-              // Daily intent card
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                  child: weeklyPlanAsync.maybeWhen(
-                    data: (plan) => plan != null
-                        ? _DailyIntentCard(weeklyPlanId: plan.id)
-                        : const SizedBox.shrink(),
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-
               // Section label
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                   child: Text(
                     "Today's focus",
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -378,9 +280,8 @@ class TodayScreen extends ConsumerWidget {
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24),
                     child: Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.kiwi400,
-                      ),
+                      child:
+                          CircularProgressIndicator(color: AppColors.kiwi400),
                     ),
                   ),
                 ),
@@ -390,8 +291,7 @@ class TodayScreen extends ConsumerWidget {
                   ),
                 ),
                 data: (tasks) {
-                  final visible = tasks.take(5).toList();
-                  if (visible.isEmpty) {
+                  if (tasks.isEmpty) {
                     return const SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24),
@@ -404,26 +304,55 @@ class TodayScreen extends ConsumerWidget {
                   return SliverPadding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     sliver: SliverList.separated(
-                      itemCount: visible.length,
+                      itemCount: tasks.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) => _TaskTile(
-                        task: visible[index],
+                        task: tasks[index],
                         onToggle: () => ref
                             .read(_todayTasksProvider.notifier)
-                            .toggleComplete(visible[index].id),
+                            .toggleComplete(tasks[index].id),
                       ),
                     ),
                   );
                 },
               ),
 
-              // Reflection prompt
+              // AI suggested focus (below tasks)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                   child: weeklyPlanAsync.maybeWhen(
                     data: (plan) => plan != null
-                        ? _ReflectionPrompt(weeklyPlanId: plan.id)
+                        ? _AiSuggestionsCard(
+                            weeklyPlanId: plan.id,
+                            onSuggestionTap: (title) {
+                              final dateStr = DateFormat('yyyy-MM-dd')
+                                  .format(DateTime.now());
+                              ref
+                                  .read(_dailyFocusProvider(
+                                          (plan.id, dateStr))
+                                      .notifier)
+                                  .removeSuggestion(title);
+                              _showAddTaskSheet(context, ref, plan.id,
+                                  initialTitle: title);
+                            },
+                          )
+                        : const SizedBox.shrink(),
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+
+              // Daily reflection entry card (always visible, muted before 5 PM)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+                  child: tasksAsync.maybeWhen(
+                    data: (tasks) => tasks.isNotEmpty
+                        ? Opacity(
+                            opacity: isEvening ? 1.0 : 0.5,
+                            child: _DailyReflectionCard(tasks: tasks),
+                          )
                         : const SizedBox.shrink(),
                     orElse: () => const SizedBox.shrink(),
                   ),
@@ -435,599 +364,27 @@ class TodayScreen extends ConsumerWidget {
       ),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-// Intent card
-// ---------------------------------------------------------------------------
-
-class _IntentCard extends StatelessWidget {
-  const _IntentCard({required this.plan});
-
-  final WeeklyPlan plan;
-
-  @override
-  Widget build(BuildContext context) {
-    return KinwiiCard(
-      color: AppColors.kiwi50,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'This week',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppColors.kiwi600,
-                  letterSpacing: 0.4,
-                ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            plan.intent,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-          const SizedBox(height: 12),
-          ProgressBar(percent: plan.progressPercent),
-          const SizedBox(height: 6),
-          Text(
-            '${plan.progressPercent}% complete',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _IntentCardSkeleton extends StatelessWidget {
-  const _IntentCardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return KinwiiCard(
-      color: AppColors.kiwi50,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 12,
-            width: 60,
-            decoration: BoxDecoration(
-              color: AppColors.borderSubtle,
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 16,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: AppColors.borderSubtle,
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-          const SizedBox(height: 12),
-          const ProgressBar(percent: 0),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Daily focus suggestions card
-// ---------------------------------------------------------------------------
-
-class _DailyFocusCard extends ConsumerStatefulWidget {
-  const _DailyFocusCard({required this.weeklyPlanId});
-
-  final String weeklyPlanId;
-
-  @override
-  ConsumerState<_DailyFocusCard> createState() => _DailyFocusCardState();
-}
-
-class _DailyFocusCardState extends ConsumerState<_DailyFocusCard> {
-  bool _dismissed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (_dismissed) return const SizedBox.shrink();
-
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final focusAsync = ref.watch(_dailyFocusProvider((widget.weeklyPlanId, today)));
-
-    return focusAsync.when(
-      loading: () => KinwiiCard(
-        color: AppColors.kiwi50,
-        child: Row(
-          children: [
-            const SizedBox(
-              height: 16,
-              width: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.kiwi400,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'Getting focus suggestions…',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.kiwi600,
-                  ),
-            ),
-          ],
-        ),
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (data) {
-        if (data == null) return const SizedBox.shrink();
-        final suggestions = (data['suggestions'] as List<dynamic>?)
-                ?.cast<String>() ??
-            [];
-        final nudge = data['nudge'] as String?;
-        if (suggestions.isEmpty) return const SizedBox.shrink();
-
-        return KinwiiCard(
-          color: AppColors.kiwi50,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.auto_awesome,
-                    size: 16,
-                    color: AppColors.kiwi500,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Suggested focus',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.kiwi600,
-                        ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => setState(() => _dismissed = true),
-                    child: const Icon(
-                      Icons.close,
-                      size: 16,
-                      color: AppColors.contentTertiary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ...suggestions.map(
-                (s) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Container(
-                          width: 5,
-                          height: 5,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.kiwi400,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          s,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.content,
-                                  ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (nudge != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  nudge,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.kiwi600,
-                        fontStyle: FontStyle.italic,
-                      ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Daily intent card
-// ---------------------------------------------------------------------------
-
-class _DailyIntentCard extends ConsumerStatefulWidget {
-  const _DailyIntentCard({required this.weeklyPlanId});
-
-  final String weeklyPlanId;
-
-  @override
-  ConsumerState<_DailyIntentCard> createState() => _DailyIntentCardState();
-}
-
-class _DailyIntentCardState extends ConsumerState<_DailyIntentCard> {
-  final _intentController = TextEditingController();
-  final _noteController = TextEditingController();
-  bool _showInput = false;
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _intentController.dispose();
-    _noteController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final intentAsync = ref.watch(_dailyIntentProvider(today));
-
-    return intentAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (intent) {
-        // Intent already set — show it
-        if (intent != null) {
-          return _buildSetIntent(context, intent, today);
-        }
-        // No intent — show input or prompt
-        if (_showInput) {
-          return _buildInputCard(context, today);
-        }
-        return _buildPromptCard(context, today);
-      },
-    );
-  }
-
-  Widget _buildPromptCard(BuildContext context, String today) {
-    // Load AI suggestion
-    final suggestionAsync = ref.watch(
-        _suggestedDailyIntentProvider((widget.weeklyPlanId, today)));
-
-    return KinwiiCard(
-      color: AppColors.surfaceAlt,
-      onTap: () {
-        // Pre-fill with AI suggestion if available
-        final suggestion = suggestionAsync.valueOrNull;
-        if (suggestion != null) {
-          _intentController.text = suggestion;
-        }
-        setState(() => _showInput = true);
-      },
-      child: Row(
-        children: [
-          const Icon(Icons.wb_sunny_outlined,
-              color: AppColors.kiwi500, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Set your daily intent',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.content,
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-                const SizedBox(height: 2),
-                suggestionAsync.maybeWhen(
-                  data: (suggestion) => suggestion != null
-                      ? Text(
-                          suggestion,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.contentSecondary,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                        )
-                      : Text(
-                          'What is today about?',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.contentTertiary,
-                                  ),
-                        ),
-                  orElse: () => Text(
-                    'What is today about?',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.contentTertiary,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.arrow_forward_ios,
-              size: 14, color: AppColors.contentTertiary),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInputCard(BuildContext context, String today) {
-    return KinwiiCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.wb_sunny_outlined,
-                  color: AppColors.kiwi500, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Daily intent',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: AppColors.kiwi600,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _intentController,
-            autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
-            maxLength: 200,
-            decoration: const InputDecoration(
-              hintText: 'What is today about?',
-              counterText: '',
-              isDense: true,
-            ),
-            onSubmitted: (_) => _saveIntent(today),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => setState(() => _showInput = false),
-                child: const Text('Cancel'),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: _saving ? null : () => _saveIntent(today),
-                child: _saving
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Set intent'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSetIntent(
-      BuildContext context, DailyIntent intent, String today) {
-    final isEvening = DateTime.now().hour >= 18;
-    final alreadyReflected = intent.honored != null;
-
-    return KinwiiCard(
-      color: AppColors.kiwi50,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.wb_sunny_outlined,
-                  color: AppColors.kiwi500, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Today\'s intent',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: AppColors.kiwi600,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            intent.intent,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-          // Evening reflection prompt
-          if (isEvening && !alreadyReflected) ...[
-            const SizedBox(height: 14),
-            const Divider(height: 1, color: AppColors.borderSubtle),
-            const SizedBox(height: 12),
-            Text(
-              'Did you honor your intent today?',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.contentSecondary,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _HonoredButton(
-                  label: 'Yes',
-                  icon: Icons.check_circle_outline,
-                  color: AppColors.kiwi400,
-                  onTap: () => _markHonored(intent.id, true, today),
-                ),
-                const SizedBox(width: 8),
-                _HonoredButton(
-                  label: 'Not quite',
-                  icon: Icons.remove_circle_outline,
-                  color: AppColors.contentTertiary,
-                  onTap: () => _showNoteDialog(intent.id, today),
-                ),
-              ],
-            ),
-          ],
-          // Already reflected
-          if (alreadyReflected) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  intent.honored == true
-                      ? Icons.check_circle
-                      : Icons.remove_circle_outline,
-                  size: 16,
-                  color: intent.honored == true
-                      ? AppColors.kiwi500
-                      : AppColors.contentTertiary,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  intent.honored == true ? 'Intent honored' : 'Not fully honored',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: intent.honored == true
-                            ? AppColors.kiwi600
-                            : AppColors.contentSecondary,
-                      ),
-                ),
-              ],
-            ),
-            if (intent.note != null && intent.note!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                intent.note!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.contentSecondary,
-                      fontStyle: FontStyle.italic,
-                    ),
-              ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _saveIntent(String today) async {
-    final text = _intentController.text.trim();
-    if (text.isEmpty) return;
-    setState(() => _saving = true);
-    try {
-      await ref
-          .read(_dailyIntentProvider(today).notifier)
-          .create(text, widget.weeklyPlanId);
-      setState(() => _showInput = false);
-    } catch (_) {
-      // Ignore
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _markHonored(
-      String intentId, bool honored, String today) async {
-    await ref
-        .read(_dailyIntentProvider(today).notifier)
-        .updateHonored(intentId, honored, null);
-  }
-
-  Future<void> _showNoteDialog(String intentId, String today) async {
-    _noteController.clear();
-    final result = await showDialog<bool>(
+  void _showAddTaskSheet(BuildContext context, WidgetRef ref, String planId,
+      {String? initialTitle}) {
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Quick note'),
-        content: TextField(
-          controller: _noteController,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'What got in the way? (optional)',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-    );
-    if (result == true) {
-      final note = _noteController.text.trim();
-      await ref
-          .read(_dailyIntentProvider(today).notifier)
-          .updateHonored(intentId, false, note.isEmpty ? null : note);
-    }
-  }
-}
-
-class _HonoredButton extends StatelessWidget {
-  const _HonoredButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderSubtle),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.content,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-          ],
-        ),
+      builder: (_) => _AddTaskSheet(
+        weeklyPlanId: planId,
+        notifier: ref.read(_todayTasksProvider.notifier),
+        initialTitle: initialTitle,
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Task tile
+// Task tile with description and time
 // ---------------------------------------------------------------------------
 
 class _TaskTile extends StatelessWidget {
@@ -1036,28 +393,34 @@ class _TaskTile extends StatelessWidget {
   final Task task;
   final VoidCallback onToggle;
 
+  static const _energyColors = {
+    EnergyType.deep: AppColors.energyDeep,
+    EnergyType.admin: AppColors.energyAdmin,
+    EnergyType.creative: AppColors.energyCreative,
+    EnergyType.personal: AppColors.energyPersonal,
+  };
+
   @override
   Widget build(BuildContext context) {
     return KinwiiCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
             onTap: onToggle,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 250),
               width: 24,
               height: 24,
+              margin: const EdgeInsets.only(top: 2),
               decoration: BoxDecoration(
-                color:
-                    task.completed ? AppColors.kiwi400 : Colors.transparent,
+                shape: BoxShape.circle,
+                color: task.completed ? AppColors.kiwi400 : Colors.white,
                 border: Border.all(
-                  color: task.completed
-                      ? AppColors.kiwi400
-                      : AppColors.borderSubtle,
+                  color:
+                      task.completed ? AppColors.kiwi400 : AppColors.borderSubtle,
                   width: 2,
                 ),
-                borderRadius: BorderRadius.circular(6),
               ),
               child: task.completed
                   ? const Icon(Icons.check, size: 14, color: Colors.white)
@@ -1066,209 +429,322 @@ class _TaskTile extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: task.completed
+                            ? AppColors.contentTertiary
+                            : AppColors.content,
+                        decoration: task.completed
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                ),
+                if (task.description != null &&
+                    task.description!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    task.description!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.contentSecondary,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (task.time != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              _formatTime(task.time!),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
+            ),
+          ],
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: _energyColors[task.energyType] ?? AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Text(
-              task.title,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: task.completed
-                        ? AppColors.contentTertiary
-                        : AppColors.content,
-                    decoration: task.completed
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
+              task.energyType.name,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.contentSecondary,
+                    fontSize: 10,
                   ),
             ),
           ),
-          const SizedBox(width: 8),
-          _EnergyPill(energyType: task.energyType),
         ],
       ),
     );
   }
+
+  String _formatTime(String timeStr) {
+    try {
+      final parts = timeStr.split(':');
+      final hour = int.parse(parts[0]);
+      final min = int.parse(parts[1]);
+      final t = TimeOfDay(hour: hour, minute: min);
+      final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+      final m = t.minute.toString().padLeft(2, '0');
+      final p = t.period == DayPeriod.am ? 'AM' : 'PM';
+      return '$h:$m $p';
+    } catch (_) {
+      return timeStr;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Energy type pill
+// AI suggestions card (tappable to create tasks)
 // ---------------------------------------------------------------------------
 
-class _EnergyPill extends StatelessWidget {
-  const _EnergyPill({required this.energyType});
+class _AiSuggestionsCard extends ConsumerWidget {
+  const _AiSuggestionsCard({
+    required this.weeklyPlanId,
+    required this.onSuggestionTap,
+  });
 
-  final EnergyType energyType;
-
-  static const _labels = {
-    EnergyType.deep: 'Deep',
-    EnergyType.admin: 'Admin',
-    EnergyType.creative: 'Creative',
-    EnergyType.personal: 'Personal',
-  };
-
-  static const _colors = {
-    EnergyType.deep: AppColors.energyDeep,
-    EnergyType.admin: AppColors.energyAdmin,
-    EnergyType.creative: AppColors.energyCreative,
-    EnergyType.personal: AppColors.energyPersonal,
-  };
-
-  static const _textColors = {
-    EnergyType.deep: AppColors.kiwi700,
-    EnergyType.admin: AppColors.contentSecondary,
-    EnergyType.creative: Color(0xFF7C3AED),
-    EnergyType.personal: Color(0xFFBE123C),
-  };
+  final String weeklyPlanId;
+  final void Function(String title) onSuggestionTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _colors[energyType],
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        _labels[energyType] ?? '',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: _textColors[energyType],
-              fontWeight: FontWeight.w500,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final suggestionsAsync =
+        ref.watch(_dailyFocusProvider((weeklyPlanId, dateStr)));
+
+    return suggestionsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (suggestions) {
+        if (suggestions.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome,
+                    size: 16, color: AppColors.kiwi500),
+                const SizedBox(width: 6),
+                Text(
+                  'AI suggested focus',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: AppColors.kiwi600,
+                        letterSpacing: 0.4,
+                      ),
+                ),
+              ],
             ),
-      ),
+            const SizedBox(height: 8),
+            ...suggestions.map((s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: InkWell(
+                    onTap: () => onSuggestionTap(s),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.kiwi50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.add_circle_outline,
+                              size: 16, color: AppColors.kiwi500),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              s,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppColors.kiwi700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )),
+          ],
+        );
+      },
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Add task bottom sheet
+// Add task sheet (with description + time)
 // ---------------------------------------------------------------------------
 
 class _AddTaskSheet extends StatefulWidget {
   const _AddTaskSheet({
     required this.weeklyPlanId,
     required this.notifier,
-    required this.onAdded,
+    this.initialTitle,
   });
 
   final String weeklyPlanId;
   final _TasksNotifier notifier;
-  final Future<void> Function()? onAdded;
+  final String? initialTitle;
 
   @override
   State<_AddTaskSheet> createState() => _AddTaskSheetState();
 }
 
 class _AddTaskSheetState extends State<_AddTaskSheet> {
-  final _titleController = TextEditingController();
-  EnergyType _selectedEnergy = EnergyType.deep;
-  bool _isLoading = false;
-  String? _error;
+  late final TextEditingController _titleCtrl;
+  final _descCtrl = TextEditingController();
+  EnergyType _energy = EnergyType.deep;
+  TimeOfDay? _time;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.initialTitle ?? '');
+  }
 
   @override
   void dispose() {
-    _titleController.dispose();
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
-      setState(() => _error = 'Please enter a task title');
-      return;
-    }
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) return;
+    setState(() => _loading = true);
     try {
+      String? timeStr;
+      if (_time != null) {
+        timeStr =
+            '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}:00';
+      }
       await widget.notifier.addTask(
         weeklyPlanId: widget.weeklyPlanId,
         title: title,
-        energyType: _selectedEnergy,
+        energyType: _energy,
+        description:
+            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        time: timeStr,
       );
-      await widget.onAdded?.call();
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _error = 'Failed to add task. Please try again.';
-        });
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomPadding),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'New task',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 20),
+          Text('Add task',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
           TextField(
-            controller: _titleController,
-            autofocus: true,
+            controller: _titleCtrl,
+            autofocus: widget.initialTitle == null,
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
-              labelText: 'What needs to get done?',
-              hintText: 'e.g. Draft proposal outline',
+              labelText: 'Task',
+              hintText: 'What do you need to do?',
             ),
-            onSubmitted: (_) => _submit(),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Energy type',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descCtrl,
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: 2,
+            minLines: 1,
+            decoration: const InputDecoration(
+              labelText: 'Description (optional)',
+              hintText: 'Details or expected outcome',
+            ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: EnergyType.values.map((type) {
-              final isSelected = _selectedEnergy == type;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedEnergy = type),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.kiwi400
-                        : AppColors.borderSubtle,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    type.name[0].toUpperCase() + type.name.substring(1),
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: isSelected
-                              ? Colors.white
-                              : AppColors.contentSecondary,
+          const SizedBox(height: 12),
+          // Time picker
+          GestureDetector(
+            onTap: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: _time ?? TimeOfDay.now(),
+              );
+              if (picked != null) setState(() => _time = picked);
+            },
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderSubtle),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule,
+                      size: 18, color: AppColors.contentSecondary),
+                  const SizedBox(width: 8),
+                  Text(
+                    _time != null
+                        ? _formatTimeOfDay(_time!)
+                        : 'Set time (optional)',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: _time != null
+                              ? AppColors.content
+                              : AppColors.contentTertiary,
                         ),
                   ),
-                ),
+                  if (_time != null) ...[
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => setState(() => _time = null),
+                      child: const Icon(Icons.close,
+                          size: 16, color: AppColors.contentTertiary),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Energy type chips
+          Wrap(
+            spacing: 8,
+            children: EnergyType.values.map((e) {
+              final selected = e == _energy;
+              return ChoiceChip(
+                label: Text(e.name),
+                selected: selected,
+                selectedColor: AppColors.kiwi100,
+                onSelected: (_) => setState(() => _energy = e),
               );
             }).toList(),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
-            ),
-          ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _submit,
-              child: _isLoading
+              onPressed: _loading ? null : _submit,
+              child: _loading
                   ? const SizedBox(
                       height: 20,
                       width: 20,
@@ -1277,7 +753,201 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Add task'),
+                  : const Text('Add'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeOfDay(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final p = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $p';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily reflection entry card → opens wizard
+// ---------------------------------------------------------------------------
+
+class _DailyReflectionCard extends StatelessWidget {
+  const _DailyReflectionCard({required this.tasks});
+
+  final List<Task> tasks;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = tasks.where((t) => t.completed).length;
+    final total = tasks.length;
+
+    return KinwiiCard(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          builder: (_) => _DailyReflectionWizard(tasks: tasks),
+        );
+      },
+      color: AppColors.kiwi50,
+      child: Row(
+        children: [
+          const Icon(Icons.rate_review_outlined,
+              size: 20, color: AppColors.kiwi600),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Daily reflection',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.content,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                Text(
+                  '$completed of $total tasks completed',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.contentSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right,
+              size: 20, color: AppColors.kiwi500),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily reflection wizard (2-step: review tasks → add reasons for incomplete)
+// ---------------------------------------------------------------------------
+
+class _DailyReflectionWizard extends ConsumerStatefulWidget {
+  const _DailyReflectionWizard({required this.tasks});
+
+  final List<Task> tasks;
+
+  @override
+  ConsumerState<_DailyReflectionWizard> createState() =>
+      _DailyReflectionWizardState();
+}
+
+class _DailyReflectionWizardState
+    extends ConsumerState<_DailyReflectionWizard> {
+  final _pageController = PageController();
+  int _currentStep = 0;
+  final Map<String, TextEditingController> _reasonControllers = {};
+
+  List<Task> get _completed =>
+      widget.tasks.where((t) => t.completed).toList();
+  List<Task> get _incomplete =>
+      widget.tasks.where((t) => !t.completed).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    for (final t in _incomplete) {
+      _reasonControllers[t.id] =
+          TextEditingController(text: t.skipReason ?? '');
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    for (final c in _reasonControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _goToStep(int step) {
+    _pageController.animateToPage(
+      step,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+    setState(() => _currentStep = step);
+  }
+
+  Future<void> _finish() async {
+    // Save all skip reasons
+    final notifier = ref.read(_todayTasksProvider.notifier);
+    for (final t in _incomplete) {
+      final reason = _reasonControllers[t.id]?.text.trim() ?? '';
+      if (reason.isNotEmpty && reason != (t.skipReason ?? '')) {
+        await notifier.updateSkipReason(t.id, reason);
+      }
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalSteps = _incomplete.isEmpty ? 1 : 2;
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.75,
+      child: Column(
+        children: [
+          // Handle bar
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderSubtle,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Step indicator
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _StepBar(
+                currentStep: _currentStep, totalSteps: totalSteps),
+          ),
+
+          // Pages
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                // Step 1: Review completed tasks
+                _ReviewStep(
+                  completed: _completed,
+                  incomplete: _incomplete,
+                  totalTasks: widget.tasks.length,
+                  onNext: _incomplete.isNotEmpty
+                      ? () => _goToStep(1)
+                      : _finish,
+                  isLastStep: _incomplete.isEmpty,
+                ),
+
+                // Step 2: Add reasons for incomplete (only if there are incomplete tasks)
+                if (_incomplete.isNotEmpty)
+                  _ReasonsStep(
+                    incomplete: _incomplete,
+                    controllers: _reasonControllers,
+                    onBack: () => _goToStep(0),
+                    onFinish: _finish,
+                  ),
+              ],
             ),
           ),
         ],
@@ -1286,60 +956,248 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Reflection prompt
-// ---------------------------------------------------------------------------
+// Step indicator bar
+class _StepBar extends StatelessWidget {
+  const _StepBar({required this.currentStep, required this.totalSteps});
 
-class _ReflectionPrompt extends ConsumerWidget {
-  const _ReflectionPrompt({required this.weeklyPlanId});
-
-  final String weeklyPlanId;
+  final int currentStep;
+  final int totalSteps;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final reflectionAsync = ref.watch(_reflectionExistsProvider(weeklyPlanId));
-    return reflectionAsync.maybeWhen(
-      data: (exists) => exists
-          ? const SizedBox.shrink()
-          : KinwiiCard(
-              color: AppColors.kiwi50,
-              onTap: () => context.go('/reflect'),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.auto_awesome_outlined,
-                    color: AppColors.kiwi500,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'How did this week go? Take a moment to reflect.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.kiwi700,
-                          ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 14,
-                    color: AppColors.kiwi500,
-                  ),
-                ],
-              ),
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(totalSteps, (i) {
+        return Expanded(
+          child: Container(
+            height: 4,
+            margin: EdgeInsets.only(right: i < totalSteps - 1 ? 4 : 0),
+            decoration: BoxDecoration(
+              color:
+                  i <= currentStep ? AppColors.kiwi400 : AppColors.borderSubtle,
+              borderRadius: BorderRadius.circular(2),
             ),
-      orElse: () => const SizedBox.shrink(),
+          ),
+        );
+      }),
     );
   }
 }
 
-final _reflectionExistsProvider =
-    FutureProvider.autoDispose.family<bool, String>((ref, weeklyPlanId) async {
-  final api = ref.read(apiServiceProvider);
-  try {
-    final response = await api.get('/reflection/$weeklyPlanId');
-    return response.data != null;
-  } catch (_) {
-    return false;
+// Step 1: Review tasks
+class _ReviewStep extends StatelessWidget {
+  const _ReviewStep({
+    required this.completed,
+    required this.incomplete,
+    required this.totalTasks,
+    required this.onNext,
+    required this.isLastStep,
+  });
+
+  final List<Task> completed;
+  final List<Task> incomplete;
+  final int totalTasks;
+  final VoidCallback onNext;
+  final bool isLastStep;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'How did today go?',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.content,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${completed.length} of $totalTasks tasks completed',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 20),
+
+          if (completed.isNotEmpty) ...[
+            Text(
+              'Completed',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.kiwi600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            ...completed.map((t) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle,
+                          size: 20, color: AppColors.kiwi500),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          t.title,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.contentSecondary,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+            const SizedBox(height: 16),
+          ],
+
+          if (incomplete.isNotEmpty) ...[
+            Text(
+              'Incomplete',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            ...incomplete.map((t) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.radio_button_unchecked,
+                          size: 20, color: AppColors.contentTertiary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          t.title,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.content,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onNext,
+              child:
+                  Text(isLastStep ? 'Done' : 'Continue'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
-});
+}
+
+// Step 2: Add reasons for incomplete tasks
+class _ReasonsStep extends StatelessWidget {
+  const _ReasonsStep({
+    required this.incomplete,
+    required this.controllers,
+    required this.onBack,
+    required this.onFinish,
+  });
+
+  final List<Task> incomplete;
+  final Map<String, TextEditingController> controllers;
+  final VoidCallback onBack;
+  final VoidCallback onFinish;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'What happened?',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.content,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Optional — note why these tasks were incomplete.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 20),
+
+          ...incomplete.map((t) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.radio_button_unchecked,
+                            size: 18, color: AppColors.contentTertiary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            t.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: AppColors.content),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 26),
+                      child: TextField(
+                        controller: controllers[t.id],
+                        style: Theme.of(context).textTheme.bodySmall,
+                        decoration: InputDecoration(
+                          hintText: 'Why? (optional)',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                                color: AppColors.borderSubtle),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: OutlinedButton(
+                  onPressed: onBack,
+                  child: const Text('Back'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: onFinish,
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

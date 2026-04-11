@@ -10,7 +10,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
-import '../../../../models/mission.dart';
 import '../../../../models/quarterly_goal.dart';
 import '../../../../models/role.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
@@ -19,17 +18,6 @@ import '../../../../services/subscription_service.dart';
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
-
-final _missionProvider = FutureProvider.autoDispose<Mission?>((ref) async {
-  final api = ref.read(apiServiceProvider);
-  try {
-    final response = await api.get('/mission');
-    if (response.data == null) return null;
-    return Mission.fromJson(response.data as Map<String, dynamic>);
-  } catch (_) {
-    return null;
-  }
-});
 
 final _goalsProvider =
     StateNotifierProvider.autoDispose<_GoalsNotifier, AsyncValue<List<QuarterlyGoal>>>(
@@ -92,7 +80,6 @@ class GoalsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final goalsAsync = ref.watch(_goalsProvider);
-    final missionAsync = ref.watch(_missionProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -100,43 +87,20 @@ class GoalsScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: AppColors.kiwi400,
           onRefresh: () async {
-            ref.invalidate(_missionProvider);
             await ref.read(_goalsProvider.notifier).refresh();
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // Mission statement (subtle)
-              SliverToBoxAdapter(
-                child: missionAsync.maybeWhen(
-                  data: (mission) => mission != null
-                      ? Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                          child: Text(
-                            mission.statement,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: AppColors.kiwi600,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                  orElse: () => const SizedBox.shrink(),
-                ),
-              ),
-
               // Header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 4),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
-                          'Quarterly goals',
+                          'Goals',
                           style: Theme.of(context)
                               .textTheme
                               .headlineLarge
@@ -151,19 +115,6 @@ class GoalsScreen extends ConsumerWidget {
                           size: 22,
                         ),
                         tooltip: 'Progress',
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          context.push('/mission').then((_) {
-                            ref.invalidate(_missionProvider);
-                          });
-                        },
-                        icon: const Icon(
-                          Icons.compass_calibration_outlined,
-                          color: AppColors.kiwi500,
-                          size: 22,
-                        ),
-                        tooltip: 'Mission & Roles',
                       ),
                       IconButton(
                         onPressed: () => _showCreateGoalSheet(context, ref),

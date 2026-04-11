@@ -6,7 +6,7 @@ import '../features/goals/presentation/screens/goal_detail_screen.dart';
 import '../features/goals/presentation/screens/goals_screen.dart';
 import '../features/mission/presentation/screens/mission_screen.dart';
 import '../features/onboarding/presentation/screens/onboarding_screen.dart';
-import '../features/reflect/presentation/screens/reflect_screen.dart';
+import '../features/settings/presentation/screens/settings_screen.dart';
 import '../features/coach/presentation/screens/coach_screen.dart';
 import '../features/reflect/presentation/screens/weekly_review_screen.dart';
 import '../features/analytics/presentation/screens/analytics_screen.dart';
@@ -107,9 +107,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
-            path: '/reflect',
+            path: '/settings',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: ReflectScreen(),
+              child: SettingsScreen(),
             ),
           ),
         ],

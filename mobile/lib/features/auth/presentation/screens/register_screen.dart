@@ -58,13 +58,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _submitOnboardingData(dynamic api, Map<String, dynamic> data) async {
-    // Save mission if provided
-    final mission = data['mission'] as String? ?? '';
-    if (mission.isNotEmpty) {
-      await api.put('/mission', data: {'statement': mission});
-    }
-
-    // Create quarterly goal
+    // Create goal
     final goalResponse = await api.post('/goals', data: {
       'title': data['goal_title'],
       'why': data['goal_why'] ?? '',
