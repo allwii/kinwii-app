@@ -271,6 +271,23 @@ class TodayScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: tasksAsync.maybeWhen(
+        data: (tasks) => tasks.isNotEmpty
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                    child: Opacity(
+                      opacity: isEvening ? 1.0 : 0.5,
+                      child: _DailyReflectionCard(tasks: tasks),
+                    ),
+                  ),
+                ],
+              )
+            : null,
+        orElse: () => null,
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.kiwi400,
@@ -412,21 +429,8 @@ class TodayScreen extends ConsumerWidget {
                 ),
               ),
 
-              // Daily reflection entry card (always visible, muted before 5 PM)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
-                  child: tasksAsync.maybeWhen(
-                    data: (tasks) => tasks.isNotEmpty
-                        ? Opacity(
-                            opacity: isEvening ? 1.0 : 0.5,
-                            child: _DailyReflectionCard(tasks: tasks),
-                          )
-                        : const SizedBox.shrink(),
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
+              // Bottom spacing
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
           ),
         ),

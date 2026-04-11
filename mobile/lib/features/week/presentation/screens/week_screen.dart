@@ -248,6 +248,21 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: planAsync.maybeWhen(
+        data: (plan) {
+          if (plan == null) return null;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                child: _WeeklyReflectionEntry(planId: plan.id),
+              ),
+            ],
+          );
+        },
+        orElse: () => null,
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.kiwi400,
@@ -447,19 +462,8 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                   ),
                 ),
 
-              // Weekly reflection section (always visible when plan exists)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-                  child: planAsync.maybeWhen(
-                    data: (plan) {
-                      if (plan == null) return const SizedBox.shrink();
-                      return _WeeklyReflectionEntry(planId: plan.id);
-                    },
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
+              // Bottom spacing
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
           ),
         ),
