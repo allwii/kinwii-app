@@ -279,7 +279,7 @@ class TodayScreen extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
                     child: Opacity(
-                      opacity: isEvening ? 1.0 : 0.5,
+                      opacity: isEvening ? 1.0 : 0.75,
                       child: _DailyReflectionCard(tasks: tasks),
                     ),
                   ),
@@ -1670,7 +1670,7 @@ class _DailyReflectionCard extends StatelessWidget {
       color: AppColors.kiwi50,
       child: Row(
         children: [
-          const Icon(Icons.rate_review_outlined,
+          const Icon(Icons.auto_awesome_outlined,
               size: 20, color: AppColors.kiwi600),
           const SizedBox(width: 10),
           Expanded(

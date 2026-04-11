@@ -135,15 +135,51 @@ class WeekScreen extends ConsumerStatefulWidget {
 }
 
 class _WeekScreenState extends ConsumerState<WeekScreen> {
-  int _weekOffset = 0; // 0 = current week, -1 = previous week
+  int _weekOffset = 0;
   bool _editingIntent = false;
   bool _suggestingIntent = false;
   final _intentController = TextEditingController();
+  late DateTime _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDay = DateTime.now();
+  }
 
   @override
   void dispose() {
     _intentController.dispose();
     super.dispose();
+  }
+
+  void _jumpToWeekOf(DateTime date) {
+    final currentMonday = _startOfWeek(DateTime.now());
+    final targetMonday = _startOfWeek(date);
+    final diff = targetMonday.difference(currentMonday).inDays ~/ 7;
+    setState(() {
+      _weekOffset = diff;
+      _selectedDay = date;
+      _editingIntent = false;
+    });
+  }
+
+  Future<void> _showWeekPicker() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDay,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.kiwi400),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null && mounted) {
+      _jumpToWeekOf(picked);
+    }
   }
 
   Future<void> _suggestIntent(WeeklyPlan plan) async {
@@ -225,6 +261,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
   void _goToPreviousWeek() {
     setState(() {
       _weekOffset--;
+      _selectedDay = _selectedDay.subtract(const Duration(days: 7));
       _editingIntent = false;
     });
   }
@@ -232,6 +269,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
   void _goToNextWeek() {
     setState(() {
       _weekOffset++;
+      _selectedDay = _selectedDay.add(const Duration(days: 7));
       _editingIntent = false;
     });
   }
@@ -276,7 +314,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // Header with week navigation
+              // Header — tappable to open week picker
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
@@ -284,47 +322,53 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.chevron_left),
-                        color: _weekOffset > -1
-                            ? AppColors.content
-                            : AppColors.borderSubtle,
-                        onPressed: _weekOffset > -1 ? _goToPreviousWeek : null,
+                        color: AppColors.content,
+                        onPressed: _goToPreviousWeek,
                         tooltip: 'Previous week',
                       ),
                       Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              'Week of ${DateFormat('MMM d').format(monday)} – ${DateFormat('MMM d').format(sunday)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(color: AppColors.content),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isCurrentWeek
-                                  ? 'Current week'
-                                  : DateFormat('yyyy').format(monday),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: isCurrentWeek
-                                        ? AppColors.kiwi600
-                                        : AppColors.contentSecondary,
+                        child: GestureDetector(
+                          onTap: _showWeekPicker,
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Week of ${DateFormat('MMM d').format(monday)} – ${DateFormat('MMM d').format(sunday)}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(color: AppColors.content),
                                   ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.calendar_today,
+                                      size: 14, color: AppColors.contentTertiary),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isCurrentWeek
+                                    ? 'Current week'
+                                    : DateFormat('yyyy').format(monday),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: isCurrentWeek
+                                          ? AppColors.kiwi600
+                                          : AppColors.contentSecondary,
+                                    ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.chevron_right),
-                        color: _weekOffset < 0
-                            ? AppColors.content
-                            : AppColors.borderSubtle,
-                        onPressed: _weekOffset < 0 ? _goToNextWeek : null,
+                        color: AppColors.content,
+                        onPressed: _goToNextWeek,
                         tooltip: 'Next week',
                       ),
                     ],
@@ -332,10 +376,10 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                 ),
               ),
 
-              // Intent card (read-only for past weeks)
+              // Intent card
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
                   child: planAsync.when(
                     loading: () => const _IntentSkeleton(),
                     error: (_, __) => const _IntentSkeleton(),
@@ -363,104 +407,142 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                 ),
               ),
 
-              // Day grid label
+              // "This week" label + AI align (inline)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-                  child: Text(
-                    isCurrentWeek ? 'This week' : 'Days',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppColors.content,
+                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+                  child: Row(
+                    children: [
+                      Text(
+                        isCurrentWeek ? 'This week' : 'Days',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppColors.content,
+                            ),
+                      ),
+                      const Spacer(),
+                      if (isCurrentWeek)
+                        planAsync.maybeWhen(
+                          data: (plan) => plan != null
+                              ? GestureDetector(
+                                  onTap: aiState.isLoading
+                                      ? null
+                                      : () async {
+                                          final notifier = ref.read(
+                                              _aiSuggestionsProvider.notifier);
+                                          final messenger =
+                                              ScaffoldMessenger.of(context);
+                                          final capturedContext = context;
+                                          await notifier.align(plan.id);
+                                          final updated =
+                                              ref.read(_aiSuggestionsProvider);
+                                          if (!mounted) return;
+                                          if (updated.suggestions.isNotEmpty) {
+                                            _showAiSheet(capturedContext,
+                                                updated.suggestions);
+                                            ref
+                                                .read(_aiSuggestionsProvider
+                                                    .notifier)
+                                                .reset();
+                                          } else if (updated.error != null) {
+                                            messenger.showSnackBar(SnackBar(
+                                                content:
+                                                    Text(updated.error!)));
+                                          }
+                                        },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.kiwi50,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (aiState.isLoading)
+                                          const SizedBox(
+                                            height: 14,
+                                            width: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 1.5,
+                                              color: AppColors.kiwi500,
+                                            ),
+                                          )
+                                        else
+                                          const Icon(
+                                              Icons.auto_awesome_outlined,
+                                              size: 14,
+                                              color: AppColors.kiwi500),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          aiState.isLoading
+                                              ? 'Aligning…'
+                                              : 'AI Align',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: AppColors.kiwi600,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                          orElse: () => const SizedBox.shrink(),
                         ),
+                    ],
                   ),
                 ),
               ),
 
-              // 7-day grid
+              // 7-day selector (compact)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: planAsync.maybeWhen(
                     data: (plan) => plan == null
-                        ? _DayGrid(days: _weekDays(monday), tasks: const [])
-                        : _WeekGridLoader(
+                        ? _DaySelector(
+                            days: _weekDays(monday),
+                            tasks: const [],
+                            selectedDay: _selectedDay,
+                            onDayTap: (day) =>
+                                setState(() => _selectedDay = day),
+                          )
+                        : _WeekDaySelectorLoader(
                             plan: plan,
                             days: _weekDays(monday),
+                            selectedDay: _selectedDay,
+                            onDayTap: (day) =>
+                                setState(() => _selectedDay = day),
                           ),
-                    orElse: () => _DayGrid(
+                    orElse: () => _DaySelector(
                       days: _weekDays(monday),
                       tasks: const [],
+                      selectedDay: _selectedDay,
+                      onDayTap: (day) => setState(() => _selectedDay = day),
                     ),
                   ),
                 ),
               ),
 
-              // AI align button (current week only)
-              if (isCurrentWeek)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                    child: planAsync.maybeWhen(
-                      data: (plan) => plan == null
-                          ? const SizedBox.shrink()
-                          : SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: aiState.isLoading
-                                    ? null
-                                    : () async {
-                                        final notifier = ref.read(
-                                          _aiSuggestionsProvider.notifier,
-                                        );
-                                        final messenger =
-                                            ScaffoldMessenger.of(context);
-                                        final capturedContext = context;
-                                        await notifier.align(plan.id);
-                                        final updated =
-                                            ref.read(_aiSuggestionsProvider);
-                                        if (!mounted) return;
-                                        if (updated.suggestions.isNotEmpty) {
-                                          _showAiSheet(
-                                            capturedContext,
-                                            updated.suggestions,
-                                          );
-                                          ref
-                                              .read(
-                                                _aiSuggestionsProvider.notifier,
-                                              )
-                                              .reset();
-                                        } else if (updated.error != null) {
-                                          messenger.showSnackBar(
-                                            SnackBar(
-                                              content: Text(updated.error!),
-                                            ),
-                                          );
-                                        }
-                                      },
-                                icon: aiState.isLoading
-                                    ? const SizedBox(
-                                        height: 16,
-                                        width: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.auto_awesome_outlined,
-                                        size: 18,
-                                      ),
-                                label: Text(
-                                  aiState.isLoading
-                                      ? 'Aligning…'
-                                      : 'AI Align this week',
-                                ),
-                              ),
-                            ),
-                      orElse: () => const SizedBox.shrink(),
-                    ),
+              // Tasks for selected day
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: planAsync.maybeWhen(
+                    data: (plan) => plan != null
+                        ? _SelectedDayTasks(
+                            planId: plan.id,
+                            selectedDay: _selectedDay,
+                          )
+                        : const SizedBox.shrink(),
+                    orElse: () => const SizedBox.shrink(),
                   ),
                 ),
+              ),
 
               // Bottom spacing
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -718,74 +800,54 @@ class _IntentSkeleton extends StatelessWidget {
 // Week grid loader (fetches tasks then renders grid)
 // ---------------------------------------------------------------------------
 
-class _WeekGridLoader extends ConsumerWidget {
-  const _WeekGridLoader({required this.plan, required this.days});
+// ---------------------------------------------------------------------------
+// Compact day selector (replaces old _DayGrid)
+// ---------------------------------------------------------------------------
+
+class _WeekDaySelectorLoader extends ConsumerWidget {
+  const _WeekDaySelectorLoader({
+    required this.plan,
+    required this.days,
+    required this.selectedDay,
+    required this.onDayTap,
+  });
 
   final WeeklyPlan plan;
   final List<DateTime> days;
-
-  void _showDaySheet(
-    BuildContext context,
-    DateTime day,
-    List<Task> dayTasks,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (_) => _DayTasksSheet(day: day, tasks: dayTasks),
-    );
-  }
+  final DateTime selectedDay;
+  final void Function(DateTime) onDayTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasksAsync = ref.watch(_weekTasksProvider(plan.id));
     return tasksAsync.when(
-      loading: () => _DayGrid(days: days, tasks: const []),
-      error: (_, __) => _DayGrid(days: days, tasks: const []),
-      data: (tasks) => _DayGrid(
-        days: days,
-        tasks: tasks,
-        onDayTap: (day, dayTasks) => _showDaySheet(context, day, dayTasks),
-      ),
+      loading: () => _DaySelector(
+          days: days, tasks: const [], selectedDay: selectedDay, onDayTap: onDayTap),
+      error: (_, __) => _DaySelector(
+          days: days, tasks: const [], selectedDay: selectedDay, onDayTap: onDayTap),
+      data: (tasks) => _DaySelector(
+          days: days, tasks: tasks, selectedDay: selectedDay, onDayTap: onDayTap),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// 7-day grid
-// ---------------------------------------------------------------------------
-
-enum _DayStatus { allDone, partial, hasTasks, empty, today, future }
-
-class _DayGrid extends StatelessWidget {
-  const _DayGrid({
+class _DaySelector extends StatelessWidget {
+  const _DaySelector({
     required this.days,
     required this.tasks,
-    this.onDayTap,
+    required this.selectedDay,
+    required this.onDayTap,
   });
 
   final List<DateTime> days;
   final List<Task> tasks;
-  final void Function(DateTime day, List<Task> dayTasks)? onDayTap;
+  final DateTime selectedDay;
+  final void Function(DateTime) onDayTap;
 
   static const _dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-  _DayStatus _statusFor(DateTime day, List<Task> dayTasks, DateTime todayDate) {
-    final isPast = day.isBefore(todayDate);
-    final isToday = day.year == todayDate.year &&
-        day.month == todayDate.month &&
-        day.day == todayDate.day;
-    if (isToday) return _DayStatus.today;
-    if (!isPast) return _DayStatus.future;
-    if (dayTasks.isEmpty) return _DayStatus.empty;
-    if (dayTasks.every((t) => t.completed)) return _DayStatus.allDone;
-    if (dayTasks.any((t) => t.completed)) return _DayStatus.partial;
-    return _DayStatus.hasTasks;
-  }
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
   Widget build(BuildContext context) {
@@ -795,145 +857,65 @@ class _DayGrid extends StatelessWidget {
     return Row(
       children: List.generate(days.length, (i) {
         final day = days[i];
-        final dayTasks = tasks.where((t) {
-          return t.date.year == day.year &&
-              t.date.month == day.month &&
-              t.date.day == day.day;
-        }).toList();
-        final completed = dayTasks.where((t) => t.completed).length;
-        final total = dayTasks.length;
-        final status = _statusFor(day, dayTasks, todayDate);
-
-        // Colors per status
-        final bgColor = switch (status) {
-          _DayStatus.allDone  => const Color(0xFFECFCF0),
-          _DayStatus.partial  => const Color(0xFFFFF8ED),
-          _DayStatus.today    => AppColors.kiwi50,
-          _DayStatus.hasTasks => Colors.white,
-          _DayStatus.empty    => Colors.white,
-          _DayStatus.future   => Colors.white,
-        };
-        final borderColor = switch (status) {
-          _DayStatus.allDone  => AppColors.kiwi300,
-          _DayStatus.partial  => const Color(0xFFFBBF24),
-          _DayStatus.today    => AppColors.kiwi400,
-          _DayStatus.hasTasks => AppColors.borderSubtle,
-          _DayStatus.empty    => AppColors.borderSubtle,
-          _DayStatus.future   => AppColors.borderSubtle,
-        };
-        final borderWidth = switch (status) {
-          _DayStatus.today    => 2.0,
-          _DayStatus.allDone  => 1.5,
-          _DayStatus.partial  => 1.5,
-          _DayStatus.hasTasks => 1.0,
-          _DayStatus.empty    => 1.0,
-          _DayStatus.future   => 1.0,
-        };
-        final labelColor = switch (status) {
-          _DayStatus.allDone  => AppColors.kiwi600,
-          _DayStatus.partial  => const Color(0xFFD97706),
-          _DayStatus.today    => AppColors.kiwi600,
-          _DayStatus.hasTasks => AppColors.contentTertiary,
-          _DayStatus.empty    => AppColors.contentTertiary,
-          _DayStatus.future   => AppColors.contentTertiary,
-        };
-        final dateColor = switch (status) {
-          _DayStatus.allDone  => AppColors.kiwi700,
-          _DayStatus.partial  => const Color(0xFF92400E),
-          _DayStatus.today    => AppColors.kiwi700,
-          _DayStatus.hasTasks => AppColors.contentSecondary,
-          _DayStatus.empty    => AppColors.contentTertiary,
-          _DayStatus.future   => AppColors.contentTertiary,
-        };
-
-        Widget indicator;
-        switch (status) {
-          case _DayStatus.allDone:
-            indicator = const Icon(
-              Icons.check_circle_rounded,
-              size: 14,
-              color: AppColors.kiwi400,
-            );
-          case _DayStatus.partial:
-            indicator = Text(
-              '$completed/$total',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: const Color(0xFFD97706),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 9,
-                  ),
-            );
-          case _DayStatus.hasTasks:
-            indicator = Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 2,
-              children: List.generate(total.clamp(0, 4), (_) => Container(
-                width: 4,
-                height: 4,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.borderSubtle,
-                ),
-              )),
-            );
-          case _DayStatus.today:
-            if (total > 0) {
-              indicator = Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 2,
-                children: List.generate(total.clamp(0, 4), (j) => Container(
-                  width: 4,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: j < completed
-                        ? AppColors.kiwi400
-                        : AppColors.borderSubtle,
-                  ),
-                )),
-              );
-            } else {
-              indicator = const SizedBox(height: 14);
-            }
-          case _DayStatus.empty:
-          case _DayStatus.future:
-            indicator = const SizedBox(height: 14);
-        }
+        final isSelected = _isSameDay(day, selectedDay);
+        final isToday = _isSameDay(day, todayDate);
+        final dayTasks = tasks.where((t) => _isSameDay(t.date, day)).toList();
+        final hasTasks = dayTasks.isNotEmpty;
+        final allDone = hasTasks && dayTasks.every((t) => t.completed);
 
         return Expanded(
           child: GestureDetector(
-            onTap: onDayTap != null ? () => onDayTap!(day, dayTasks) : null,
+            onTap: () => onDayTap(day),
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor, width: borderWidth),
+                color: isSelected ? AppColors.kiwi400 : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: isToday && !isSelected
+                    ? Border.all(color: AppColors.kiwi400, width: 1.5)
+                    : null,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     _dayLabels[i],
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: labelColor,
-                          fontWeight: status == _DayStatus.today || status == _DayStatus.allDone
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                          fontSize: 11,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.contentTertiary,
+                          fontSize: 10,
                         ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     '${day.day}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: dateColor,
+                          color: isSelected
+                              ? Colors.white
+                              : isToday
+                                  ? AppColors.kiwi600
+                                  : AppColors.content,
                           fontWeight: FontWeight.w600,
                         ),
                   ),
-                  const SizedBox(height: 5),
-                  SizedBox(height: 14, child: Center(child: indicator)),
+                  const SizedBox(height: 3),
+                  // Dot indicator: green if all done, gray if has tasks
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: !hasTasks
+                          ? Colors.transparent
+                          : isSelected
+                              ? Colors.white
+                              : allDone
+                                  ? AppColors.kiwi400
+                                  : AppColors.borderSubtle,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -941,6 +923,115 @@ class _DayGrid extends StatelessWidget {
         );
       }),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Inline task list for selected day
+// ---------------------------------------------------------------------------
+
+class _SelectedDayTasks extends ConsumerWidget {
+  const _SelectedDayTasks({
+    required this.planId,
+    required this.selectedDay,
+  });
+
+  final String planId;
+  final DateTime selectedDay;
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasksAsync = ref.watch(_weekTasksProvider(planId));
+
+    return tasksAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (allTasks) {
+        final dayTasks =
+            allTasks.where((t) => _isSameDay(t.date, selectedDay)).toList();
+
+        if (dayTasks.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'No tasks for this day.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: dayTasks.map((task) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: GestureDetector(
+                onTap: () {
+                  ref.read(_weekTasksProvider(planId));
+                  // Toggle completion
+                  _toggleTask(ref, task.id, planId);
+                },
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(5),
+                        color: task.completed
+                            ? AppColors.kiwi400
+                            : Colors.white,
+                        border: Border.all(
+                          color: task.completed
+                              ? AppColors.kiwi400
+                              : AppColors.borderSubtle,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: task.completed
+                          ? const Icon(Icons.check,
+                              size: 12, color: Colors.white)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        style:
+                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: task.completed
+                                      ? AppColors.contentTertiary
+                                      : AppColors.content,
+                                  decoration: task.completed
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleTask(WidgetRef ref, String taskId, String planId) async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.patch('/tasks/$taskId/complete');
+      ref.invalidate(_weekTasksProvider(planId));
+    } catch (_) {
+      // Silent fail
+    }
   }
 }
 
@@ -1189,124 +1280,6 @@ class _CreateWeekSheetState extends ConsumerState<_CreateWeekSheet> {
 
 // ---------------------------------------------------------------------------
 // Day tasks bottom sheet
-// ---------------------------------------------------------------------------
-
-class _DayTasksSheet extends StatelessWidget {
-  const _DayTasksSheet({required this.day, required this.tasks});
-
-  final DateTime day;
-  final List<Task> tasks;
-
-  @override
-  Widget build(BuildContext context) {
-    final dayLabel = DateFormat('EEEE, MMM d').format(day);
-    final completed = tasks.where((t) => t.completed).length;
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.5,
-      minChildSize: 0.35,
-      maxChildSize: 0.85,
-      expand: false,
-      builder: (_, scrollController) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: AppColors.borderSubtle,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Text(
-              dayLabel,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.content,
-                  ),
-            ),
-            if (tasks.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                '$completed / ${tasks.length} completed',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.contentSecondary,
-                    ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Expanded(
-              child: tasks.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No tasks for this day.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.contentTertiary,
-                            ),
-                      ),
-                    )
-                  : ListView.separated(
-                      controller: scrollController,
-                      itemCount: tasks.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (_, i) {
-                        final task = tasks[i];
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderSubtle),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                task.completed
-                                    ? Icons.check_circle
-                                    : Icons.radio_button_unchecked,
-                                size: 20,
-                                color: task.completed
-                                    ? AppColors.kiwi400
-                                    : AppColors.borderSubtle,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  task.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: task.completed
-                                            ? AppColors.contentTertiary
-                                            : AppColors.content,
-                                        decoration: task.completed
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                      ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Weekly reflection entry point (shown at bottom of Week screen)
 // ---------------------------------------------------------------------------
