@@ -438,6 +438,7 @@ class TodayScreen extends ConsumerWidget {
       {String? goalName}) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.white,
@@ -457,7 +458,9 @@ class TodayScreen extends ConsumerWidget {
       {String? initialTitle}) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -702,7 +705,7 @@ class _AiSuggestionsCard extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Add task sheet (with description + time)
+// Add task sheet — unified layout matching task detail view
 // ---------------------------------------------------------------------------
 
 class _AddTaskSheet extends ConsumerStatefulWidget {
@@ -723,11 +726,11 @@ class _AddTaskSheet extends ConsumerStatefulWidget {
 class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   late final TextEditingController _titleCtrl;
   final _descCtrl = TextEditingController();
-  EnergyType _energy = EnergyType.deep;
   TimeOfDay? _time;
   bool _loading = false;
-  bool _showDetails = false;
+  bool _descFullView = false;
   String? _selectedGoalId;
+  String? _selectedGoalName;
   String? _error;
 
   @override
@@ -743,28 +746,17 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     super.dispose();
   }
 
-  /// Resolve the weekly plan for a goal. If none exists for this week,
-  /// auto-create one with intent derived from the goal title.
   Future<String> _resolveWeeklyPlanId(String goalId, String goalTitle) async {
     final api = ref.read(apiServiceProvider);
-
-    // Check if current week plan already exists
     try {
       final response = await api.get('/week/current');
-      if (response.data != null) {
-        return response.data['id'] as String;
-      }
-    } catch (_) {
-      // 404 — no plan exists, create one
-    }
+      if (response.data != null) return response.data['id'] as String;
+    } catch (_) {}
 
-    // Auto-create weekly plan linked to this goal
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
-    final mondayStr = DateFormat('yyyy-MM-dd').format(monday);
-
     final response = await api.post('/week', data: {
-      'week_start_date': mondayStr,
+      'week_start_date': DateFormat('yyyy-MM-dd').format(monday),
       'intent': 'Focus on: $goalTitle',
       'quarter_id': goalId,
     });
@@ -782,13 +774,9 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
       _loading = true;
       _error = null;
     });
-
     try {
-      // Find goal title for auto-creating weekly plan
-      final goals = ref.read(_goalsProvider).valueOrNull ?? [];
-      final goal = goals.firstWhere((g) => g.id == _selectedGoalId);
-      final planId = await _resolveWeeklyPlanId(goal.id, goal.title);
-
+      final planId =
+          await _resolveWeeklyPlanId(_selectedGoalId!, _selectedGoalName!);
       String? timeStr;
       if (_time != null) {
         timeStr =
@@ -797,7 +785,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
       await widget.notifier.addTask(
         weeklyPlanId: planId,
         title: title,
-        energyType: _energy,
+        energyType: EnergyType.deep,
         description:
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         time: timeStr,
@@ -814,224 +802,49 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final goalsAsync = ref.watch(_goalsProvider);
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-
-    // Auto-select goal if only one exists
-    goalsAsync.whenData((goals) {
-      if (_selectedGoalId == null && goals.length == 1) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _selectedGoalId == null) {
-            setState(() => _selectedGoalId = goals.first.id);
-          }
-        });
-      }
-    });
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomPadding),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Add task', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-
-          // Task title
-          TextField(
-            controller: _titleCtrl,
-            autofocus: widget.initialTitle == null,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Task',
-              hintText: 'What do you need to do?',
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Goal picker
-          goalsAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (goals) {
-              if (goals.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Create a goal first to start adding tasks.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.contentTertiary,
-                        ),
-                  ),
-                );
-              }
-              if (goals.length == 1) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.flag, size: 16, color: AppColors.kiwi500),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          goals.first.title,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.kiwi600,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              // Multiple goals — show dropdown
-              return DropdownButtonFormField<String>(
-                initialValue: _selectedGoalId,
-                decoration: const InputDecoration(
-                  labelText: 'Goal',
-                  isDense: true,
-                ),
-                items: goals
-                    .map((g) => DropdownMenuItem(
-                          value: g.id,
-                          child: Text(
-                            g.title,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedGoalId = v),
-              );
-            },
-          ),
-          const SizedBox(height: 4),
-
-          // "Add details" toggle
-          if (!_showDetails)
-            GestureDetector(
-              onTap: () => setState(() => _showDetails = true),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.tune,
-                        size: 14, color: AppColors.contentTertiary),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Add details',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.contentTertiary,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Expanded details
-          if (_showDetails) ...[
-            TextField(
-              controller: _descCtrl,
-              textCapitalization: TextCapitalization.sentences,
-              maxLines: 2,
-              minLines: 1,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                hintText: 'Details or expected outcome',
-              ),
-            ),
+  void _showGoalPicker(List<QuarterlyGoal> goals) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Goal', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            // Time picker
-            GestureDetector(
-              onTap: () async {
-                final picked = await showTimePicker(
-                  context: context,
-                  initialTime: _time ?? TimeOfDay.now(),
-                );
-                if (picked != null) setState(() => _time = picked);
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderSubtle),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.schedule,
-                        size: 18, color: AppColors.contentSecondary),
-                    const SizedBox(width: 8),
-                    Text(
-                      _time != null
-                          ? _formatTimeOfDay(_time!)
-                          : 'Set time',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _time != null
-                                ? AppColors.content
-                                : AppColors.contentTertiary,
-                          ),
-                    ),
-                    if (_time != null) ...[
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => setState(() => _time = null),
-                        child: const Icon(Icons.close,
-                            size: 16, color: AppColors.contentTertiary),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Energy type chips
-            Wrap(
-              spacing: 8,
-              children: EnergyType.values.map((e) {
-                final selected = e == _energy;
-                return ChoiceChip(
-                  label: Text(e.name),
-                  selected: selected,
-                  selectedColor: AppColors.kiwi100,
-                  onSelected: (_) => setState(() => _energy = e),
-                );
-              }).toList(),
-            ),
+            ...goals.map((g) => ListTile(
+                  leading: const Icon(Icons.flag,
+                      size: 16, color: AppColors.kiwi500),
+                  title: Text(g.title,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  trailing: g.id == _selectedGoalId
+                      ? const Icon(Icons.check, color: AppColors.kiwi500)
+                      : null,
+                  onTap: () {
+                    setState(() {
+                      _selectedGoalId = g.id;
+                      _selectedGoalName = g.title;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                )),
           ],
-
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(_error!,
-                style: const TextStyle(color: Colors.red, fontSize: 13)),
-          ],
-
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Add'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _time ?? TimeOfDay.now(),
+    );
+    if (picked != null) setState(() => _time = picked);
   }
 
   String _formatTimeOfDay(TimeOfDay t) {
@@ -1039,6 +852,298 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     final m = t.minute.toString().padLeft(2, '0');
     final p = t.period == DayPeriod.am ? 'AM' : 'PM';
     return '$h:$m $p';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final goalsAsync = ref.watch(_goalsProvider);
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    // Auto-select goal if only one exists
+    goalsAsync.whenData((goals) {
+      if (_selectedGoalId == null && goals.length == 1) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _selectedGoalId == null) {
+            setState(() {
+              _selectedGoalId = goals.first.id;
+              _selectedGoalName = goals.first.title;
+            });
+          }
+        });
+      }
+    });
+
+    final goals = goalsAsync.valueOrNull ?? [];
+
+    // Full-view for description editing
+    if (_descFullView) {
+      return SizedBox(
+        height: screenHeight * 0.92,
+        child: _buildDescFullView(context, bottomPadding),
+      );
+    }
+
+    // Compact view
+    return SizedBox(
+      height: screenHeight * 0.6,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + bottomPadding),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Row 1: Goal chip
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: goals.length > 1
+                      ? () => _showGoalPicker(goals)
+                      : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.kiwi50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderSubtle),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.flag,
+                            size: 14, color: AppColors.kiwi500),
+                        const SizedBox(width: 4),
+                        ConstrainedBox(
+                          constraints:
+                              const BoxConstraints(maxWidth: 220),
+                          child: Text(
+                            _selectedGoalName ?? 'Select goal',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: _selectedGoalName != null
+                                      ? AppColors.kiwi600
+                                      : AppColors.contentTertiary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (goals.length > 1) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.unfold_more,
+                              size: 14,
+                              color: AppColors.contentTertiary),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Row 2: Today + time
+            Row(
+              children: [
+                const Icon(Icons.today,
+                    size: 18, color: AppColors.contentSecondary),
+                const SizedBox(width: 6),
+                Text(
+                  'Today',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.content,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                if (_time != null) ...[
+                  Text(
+                    ', ${_formatTimeOfDay(_time!)}',
+                    style:
+                        Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.content,
+                              fontWeight: FontWeight.w500,
+                            ),
+                  ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () => setState(() => _time = null),
+                    child: const Icon(Icons.close,
+                        size: 14, color: AppColors.contentTertiary),
+                  ),
+                ],
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: _pickTime,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.surfaceAlt,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.schedule,
+                            size: 14,
+                            color: AppColors.contentTertiary),
+                        const SizedBox(width: 4),
+                        Text(
+                          _time != null ? 'Change' : 'Set time',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: AppColors.contentTertiary,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Title (borderless, matches detail view)
+            TextField(
+              controller: _titleCtrl,
+              autofocus: widget.initialTitle == null,
+              textCapitalization: TextCapitalization.sentences,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.content,
+                    fontWeight: FontWeight.w600,
+                  ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                hintText: 'What task do you need to focus on?',
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
+              ),
+              maxLines: null,
+            ),
+
+            const SizedBox(height: 8),
+
+            // Description (tappable, matches detail view)
+            GestureDetector(
+              onTap: () => setState(() => _descFullView = true),
+              child: Text(
+                _descCtrl.text.isNotEmpty
+                    ? _descCtrl.text
+                    : 'add details, deliverables, or notes...',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: _descCtrl.text.isNotEmpty
+                          ? AppColors.contentSecondary
+                          : AppColors.contentTertiary,
+                    ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 13)),
+            ],
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _submit,
+                child: _loading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Add task'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDescFullView(BuildContext context, double bottomPadding) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + bottomPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _titleCtrl.text.isNotEmpty
+                      ? _titleCtrl.text
+                      : 'New task',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.content,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() => _descFullView = false),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.all(8),
+                  minimumSize: Size.zero,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  color: AppColors.kiwi500,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: TextField(
+              controller: _descCtrl,
+              autofocus: true,
+              expands: true,
+              maxLines: null,
+              textAlignVertical: TextAlignVertical.top,
+              textCapitalization: TextCapitalization.sentences,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.content,
+                    height: 1.6,
+                  ),
+              decoration: InputDecoration(
+                hintText: 'add details, deliverables, or notes...',
+                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.contentTertiary,
+                    ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1253,7 +1358,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                     height: 1.6,
                   ),
               decoration: InputDecoration(
-                hintText: 'Add details, outcomes, or notes...',
+                hintText: 'add details, deliverables, or notes...',
                 hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.contentTertiary,
                     ),
@@ -1453,7 +1558,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
             child: Text(
               _descCtrl.text.isNotEmpty
                   ? _descCtrl.text
-                  : 'Add details, outcomes, or notes...',
+                  : 'add details, deliverables, or notes...',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: _descCtrl.text.isNotEmpty
                         ? AppColors.contentSecondary
