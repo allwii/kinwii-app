@@ -11,7 +11,6 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
 import '../../../../models/quarterly_goal.dart';
-import '../../../../models/role.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
 import '../../../../services/subscription_service.dart';
 
@@ -51,7 +50,6 @@ class _GoalsNotifier
     required String why,
     required DateTime startDate,
     required DateTime endDate,
-    String? roleId,
   }) async {
     final api = _ref.read(apiServiceProvider);
     final response = await api.post('/goals', data: {
@@ -59,7 +57,6 @@ class _GoalsNotifier
       'why': why,
       'start_date': DateFormat('yyyy-MM-dd').format(startDate),
       'end_date': DateFormat('yyyy-MM-dd').format(endDate),
-      if (roleId != null) 'role_id': roleId,
     });
     final newGoal =
         QuarterlyGoal.fromJson(response.data as Map<String, dynamic>);
@@ -185,7 +182,9 @@ class GoalsScreen extends ConsumerWidget {
     }
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -198,22 +197,6 @@ class GoalsScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Roles provider (for goal creation)
-// ---------------------------------------------------------------------------
-
-final _rolesProvider =
-    FutureProvider.autoDispose<List<Role>>((ref) async {
-  final api = ref.read(apiServiceProvider);
-  try {
-    final response = await api.get('/mission/roles');
-    return (response.data as List<dynamic>)
-        .map((e) => Role.fromJson(e as Map<String, dynamic>))
-        .toList();
-  } catch (_) {
-    return [];
-  }
-});
-
 // ---------------------------------------------------------------------------
 // Goal card
 // ---------------------------------------------------------------------------
@@ -325,7 +308,7 @@ class _GoalCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Create goal bottom sheet
+// Create goal sheet — unified layout matching goal detail view
 // ---------------------------------------------------------------------------
 
 class _CreateGoalSheet extends ConsumerStatefulWidget {
@@ -338,12 +321,12 @@ class _CreateGoalSheet extends ConsumerStatefulWidget {
 }
 
 class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
-  final _titleController = TextEditingController();
-  final _whyController = TextEditingController();
+  final _titleCtrl = TextEditingController();
+  final _whyCtrl = TextEditingController();
   DateTime _startDate = _currentQuarterStart();
   DateTime _endDate = _currentQuarterEnd();
-  String? _selectedRoleId;
-  bool _isLoading = false;
+  bool _loading = false;
+  bool _whyExpanded = false;
   String? _error;
 
   static DateTime _currentQuarterStart() {
@@ -361,34 +344,33 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _whyController.dispose();
+    _titleCtrl.dispose();
+    _whyCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final title = _titleController.text.trim();
+    final title = _titleCtrl.text.trim();
     if (title.length < 5) {
       setState(() => _error = 'Goal title must be at least 5 characters.');
       return;
     }
     setState(() {
-      _isLoading = true;
+      _loading = true;
       _error = null;
     });
     try {
       await widget.notifier.addGoal(
         title: title,
-        why: _whyController.text.trim(),
+        why: _whyCtrl.text.trim(),
         startDate: _startDate,
         endDate: _endDate,
-        roleId: _selectedRoleId,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _loading = false;
           _error = 'Failed to create goal. Please try again.';
         });
       }
@@ -423,151 +405,138 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-    final fmt = DateFormat('MMM d, yyyy');
+    final screenHeight = MediaQuery.of(context).size.height;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomPadding),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('New goal', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _titleController,
-            autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Goal title',
-              hintText: 'e.g. Launch v1 product',
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _whyController,
-            maxLines: 2,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Why it matters (optional)',
-              hintText: 'e.g. Prove the concept and get first customers',
-            ),
-          ),
-          const SizedBox(height: 14),
-          // Role dropdown
-          ref.watch(_rolesProvider).when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (roles) {
-                  if (roles.isEmpty) return const SizedBox.shrink();
-                  return DropdownButtonFormField<String?>(
-                    initialValue: _selectedRoleId,
-                    decoration: const InputDecoration(
-                      labelText: 'Life role (optional)',
-                      hintText: 'Which role does this serve?',
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('No role'),
-                      ),
-                      ...roles.map((r) => DropdownMenuItem(
-                            value: r.id,
-                            child: Text(r.name),
-                          )),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _selectedRoleId = value),
-                  );
-                },
-              ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _DateTile(
-                  label: 'Start',
-                  value: fmt.format(_startDate),
-                  onTap: () => _pickDate(isStart: true),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _DateTile(
-                  label: 'End',
-                  value: fmt.format(_endDate),
-                  onTap: () => _pickDate(isStart: false),
-                ),
-              ),
-            ],
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
-            ),
-          ],
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _submit,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Create goal'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DateTile extends StatelessWidget {
-  const _DateTile({
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderSubtle),
-        ),
+    return SizedBox(
+      height: screenHeight * 0.6,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + bottomPadding),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.contentSecondary,
+            // Dates row (compact, at top like task detail's date/time row)
+            Row(
+              children: [
+                const Icon(Icons.calendar_today,
+                    size: 14, color: AppColors.contentSecondary),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () => _pickDate(isStart: true),
+                  child: Text(
+                    DateFormat('MMM d').format(_startDate),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.content,
+                          fontWeight: FontWeight.w500,
+                        ),
                   ),
+                ),
+                Text(' – ',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.contentTertiary,
+                        )),
+                GestureDetector(
+                  onTap: () => _pickDate(isStart: false),
+                  child: Text(
+                    DateFormat('MMM d, yyyy').format(_endDate),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.content,
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
+            const SizedBox(height: 24),
+
+            // Title (borderless, matching task creation)
+            TextField(
+              controller: _titleCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppColors.content,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                hintText: 'What\'s your goal?',
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
+              ),
+              maxLines: null,
+            ),
+
+            const SizedBox(height: 16),
+
+            // Why (tappable to expand, matching task description)
+            if (!_whyExpanded)
+              GestureDetector(
+                onTap: () => setState(() => _whyExpanded = true),
+                child: Text(
+                  _whyCtrl.text.isNotEmpty
+                      ? _whyCtrl.text
+                      : 'Why does this matter?',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _whyCtrl.text.isNotEmpty
+                            ? AppColors.contentSecondary
+                            : AppColors.contentTertiary,
+                      ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+            if (_whyExpanded)
+              TextField(
+                controller: _whyCtrl,
+                autofocus: true,
+                maxLines: 3,
+                minLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.content,
+                    ),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Prove the concept and get first customers',
+                  hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.contentTertiary,
+                      ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                  contentPadding: EdgeInsets.zero,
+                  isDense: true,
+                ),
+              ),
+
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 13)),
+            ],
+
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _submit,
+                child: _loading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Create goal'),
+              ),
             ),
           ],
         ),

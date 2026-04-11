@@ -891,10 +891,9 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     // Compact view
     return SizedBox(
       height: screenHeight * 0.6,
-      child: SingleChildScrollView(
+      child: Padding(
         padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + bottomPadding),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Row 1: Goal chip
@@ -949,7 +948,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
             // Row 2: Today + time
             Row(
@@ -1013,7 +1012,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
               ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // Title (borderless, matches detail view)
             TextField(
@@ -1036,22 +1035,25 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
               maxLines: null,
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
-            // Description (tappable, matches detail view)
+            // Description (tappable, with visual height)
             GestureDetector(
               onTap: () => setState(() => _descFullView = true),
-              child: Text(
-                _descCtrl.text.isNotEmpty
-                    ? _descCtrl.text
-                    : 'add details, deliverables, or notes...',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: _descCtrl.text.isNotEmpty
-                          ? AppColors.contentSecondary
-                          : AppColors.contentTertiary,
-                    ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 60),
+                child: Text(
+                  _descCtrl.text.isNotEmpty
+                      ? _descCtrl.text
+                      : 'Add details, deliverables, or notes...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _descCtrl.text.isNotEmpty
+                            ? AppColors.contentSecondary
+                            : AppColors.contentTertiary,
+                      ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
 
@@ -1061,7 +1063,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                   style: const TextStyle(color: Colors.red, fontSize: 13)),
             ],
 
-            const SizedBox(height: 20),
+            const Spacer(),
 
             SizedBox(
               width: double.infinity,
