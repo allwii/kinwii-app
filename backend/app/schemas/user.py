@@ -28,3 +28,17 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str = Field(..., min_length=6, max_length=6)
+    new_password: str = Field(..., min_length=8)
+
+
+class MessageResponse(BaseModel):
+    message: str

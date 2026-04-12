@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/auth_service.dart';
 import '../../../../services/subscription_service.dart';
+import '../../../settings/presentation/widgets/password_reset_modal.dart';
 
 final authServiceProvider = Provider((ref) => AuthService());
 final apiServiceProvider = Provider((ref) {
@@ -96,11 +97,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _login(),
               ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(24)),
+                      ),
+                      builder: (_) => PasswordResetModal(
+                        api: ref.read(apiServiceProvider),
+                      ),
+                    );
+                  },
+                  child: const Text('Forgot password?'),
+                ),
+              ),
               if (_error != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
                 Text(_error!, style: const TextStyle(color: Colors.red)),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

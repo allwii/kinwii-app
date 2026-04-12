@@ -42,6 +42,10 @@ class User(Base):
         "notify_midweek_progress", Boolean, nullable=False, server_default="true"
     )
 
+    # Password reset
+    reset_code = Column(String, nullable=True)
+    reset_code_expires_at = Column(DateTime(timezone=True), nullable=True)
+
     mission = relationship("Mission", back_populates="user", uselist=False, cascade="all, delete-orphan")
     roles = relationship("Role", back_populates="user", cascade="all, delete-orphan")
     goals = relationship("QuarterlyGoal", back_populates="user", cascade="all, delete-orphan")

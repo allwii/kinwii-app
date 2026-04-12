@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-5.2"
     ENVIRONMENT: str = "development"
     REVENUECAT_WEBHOOK_SECRET: str = ""
+    RESEND_API_KEY: str = ""
 
     model_config = {"env_file": ".env"}
 
