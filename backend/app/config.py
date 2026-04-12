@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     REVENUECAT_WEBHOOK_SECRET: str = ""
     RESEND_API_KEY: str = ""
+    GOOGLE_CLIENT_ID_IOS: str = ""
+    GOOGLE_CLIENT_ID_ANDROID: str = ""
+    GOOGLE_CLIENT_ID_WEB: str = ""
 
     model_config = {"env_file": ".env"}
 

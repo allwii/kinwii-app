@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../services/google_auth_service.dart';
 import '../../../../services/subscription_service.dart';
 import '../../../settings/presentation/widgets/password_reset_modal.dart';
 
@@ -24,6 +25,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _error;
 
   Future<void> _login() async {
@@ -51,6 +53,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _error = 'Incorrect email or password');
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _googleSignIn() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _error = null;
+    });
+    try {
+      final googleAuth = GoogleAuthService(
+        ref.read(apiServiceProvider),
+        ref.read(authServiceProvider),
+      );
+      await googleAuth.signIn();
+      await ref.read(subscriptionProvider.notifier).refresh();
+      if (mounted) {
+        final onboardingComplete =
+            await ref.read(authServiceProvider).isOnboardingComplete();
+        if (mounted) {
+          context.go(onboardingComplete ? '/today' : '/onboarding');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -139,6 +169,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Divider
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'or',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.contentTertiary,
+                          ),
+                    ),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Google sign-in
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isGoogleLoading ? null : _googleSignIn,
+                  icon: _isGoogleLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Image.network(
+                          'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                          height: 20,
+                          width: 20,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.g_mobiledata, size: 20),
+                        ),
+                  label: const Text('Continue with Google'),
+                ),
+              ),
+
+              const SizedBox(height: 12),
               Center(
                 child: TextButton(
                   onPressed: () => context.go('/auth/register'),

@@ -1,9 +1,13 @@
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.middleware.auth_middleware import (
     create_access_token,
@@ -14,6 +18,7 @@ from app.middleware.auth_middleware import (
 from app.models.user import SubscriptionTier, User
 from app.schemas.user import (
     ForgotPasswordRequest,
+    GoogleSignInRequest,
     MessageResponse,
     ResetPasswordRequest,
     TokenResponse,
@@ -21,6 +26,19 @@ from app.schemas.user import (
     UserResponse,
 )
 from app.services.email_service import send_reset_code_email
+
+logger = logging.getLogger(__name__)
+
+# All valid Google client IDs (iOS, Android, Web) for token verification
+_GOOGLE_CLIENT_IDS = set(
+    cid
+    for cid in [
+        settings.GOOGLE_CLIENT_ID_IOS,
+        settings.GOOGLE_CLIENT_ID_ANDROID,
+        settings.GOOGLE_CLIENT_ID_WEB,
+    ]
+    if cid
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -114,3 +132,58 @@ async def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_d
     db.commit()
 
     return MessageResponse(message="Password has been reset successfully.")
+
+
+@router.post("/google", response_model=TokenResponse)
+async def google_sign_in(body: GoogleSignInRequest, db: Session = Depends(get_db)):
+    """Verify a Google ID token and sign in (or create) the user."""
+    if not _GOOGLE_CLIENT_IDS:
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is not configured.",
+        )
+
+    try:
+        # Verify the token against all configured client IDs
+        id_info = None
+        for client_id in _GOOGLE_CLIENT_IDS:
+            try:
+                id_info = google_id_token.verify_oauth2_token(
+                    body.id_token,
+                    google_requests.Request(),
+                    audience=client_id,
+                )
+                break
+            except ValueError:
+                continue
+
+        if id_info is None:
+            raise HTTPException(status_code=401, detail="Invalid Google token.")
+
+    except Exception as e:
+        logger.warning("Google token verification failed: %s", e)
+        raise HTTPException(status_code=401, detail="Invalid Google token.")
+
+    email = id_info.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account has no email.")
+
+    # Find or create user
+    user = db.query(User).filter(User.email == email).first()
+    is_new = user is None
+
+    if is_new:
+        now = datetime.now(timezone.utc)
+        user = User(
+            email=email,
+            hashed_password=hash_password(secrets.token_hex(32)),  # random pw for social users
+            subscription_tier=SubscriptionTier.pro,
+            trial_start_date=now,
+            trial_end_date=now + timedelta(days=TRIAL_DAYS),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    token = create_access_token(user.id)
+    return TokenResponse(access_token=token)
