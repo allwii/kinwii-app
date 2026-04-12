@@ -1,4 +1,4 @@
-// SettingsScreen — Configure reminders and account.
+// SettingsScreen — Production-quality settings with profile, reminders, account.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
 import '../../../../main.dart';
+import '../widgets/password_reset_modal.dart';
 
 // ---------------------------------------------------------------------------
 // Settings persistence via Hive
@@ -101,6 +102,17 @@ class ReminderSettingsNotifier extends StateNotifier<ReminderSettings> {
   }
 }
 
+// User email provider
+final _userEmailProvider = FutureProvider<String?>((ref) async {
+  final api = ref.read(apiServiceProvider);
+  try {
+    final resp = await api.get('/auth/me');
+    return resp.data['email'] as String?;
+  } catch (_) {
+    return null;
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
@@ -108,8 +120,7 @@ class ReminderSettingsNotifier extends StateNotifier<ReminderSettings> {
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  void _updateAndSchedule(
-      WidgetRef ref, ReminderSettings settings) {
+  void _updateAndSchedule(WidgetRef ref, ReminderSettings settings) {
     ref.read(reminderSettingsProvider.notifier).update(settings);
     final ns = ref.read(localNotificationProvider);
     if (settings.dailyPlanningEnabled) {
@@ -132,6 +143,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(reminderSettingsProvider);
+    final emailAsync = ref.watch(_userEmailProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -148,83 +160,215 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- Reminders section ---
-            Text(
-              'REMINDERS',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppColors.contentSecondary,
-                    letterSpacing: 1.2,
+            // --- Profile section ---
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppColors.kiwi100,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(Icons.person,
+                        color: AppColors.kiwi600, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        emailAsync.when(
+                          data: (email) => Text(
+                            email ?? 'User',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(
+                                  color: AppColors.content,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          loading: () => Text(
+                            'Loading...',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: AppColors.contentTertiary),
+                          ),
+                          error: (_, __) => Text(
+                            'User',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(color: AppColors.content),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Kinwii member',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.contentTertiary,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            _ReminderRow(
-              label: 'Daily planning',
-              sublabel: 'Weekdays',
-              time: settings.dailyPlanningTime,
-              enabled: settings.dailyPlanningEnabled,
-              onToggle: (v) => _updateAndSchedule(
-                    ref, settings.copyWith(dailyPlanningEnabled: v)),
-              onTimeTap: () async {
-                final picked = await showTimePicker(
-                  context: context,
-                  initialTime: settings.dailyPlanningTime,
-                );
-                if (picked != null) {
-                  _updateAndSchedule(
-                      ref, settings.copyWith(dailyPlanningTime: picked));
-                }
-              },
+
+            const SizedBox(height: 28),
+
+            // --- Reminders section ---
+            _SectionLabel(label: 'REMINDERS'),
+            const SizedBox(height: 10),
+            _SettingsCard(
+              children: [
+                _ReminderRow(
+                  label: 'Daily planning',
+                  sublabel: 'Weekdays',
+                  time: settings.dailyPlanningTime,
+                  enabled: settings.dailyPlanningEnabled,
+                  onToggle: (v) => _updateAndSchedule(
+                      ref, settings.copyWith(dailyPlanningEnabled: v)),
+                  onTimeTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: settings.dailyPlanningTime,
+                    );
+                    if (picked != null) {
+                      _updateAndSchedule(
+                          ref, settings.copyWith(dailyPlanningTime: picked));
+                    }
+                  },
+                ),
+                const SizedBox(height: 2),
+                _ReminderRow(
+                  label: 'Daily reflection',
+                  sublabel: 'Weekdays',
+                  time: settings.dailyReflectionTime,
+                  enabled: settings.dailyReflectionEnabled,
+                  onToggle: (v) => _updateAndSchedule(
+                      ref, settings.copyWith(dailyReflectionEnabled: v)),
+                  onTimeTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: settings.dailyReflectionTime,
+                    );
+                    if (picked != null) {
+                      _updateAndSchedule(ref,
+                          settings.copyWith(dailyReflectionTime: picked));
+                    }
+                  },
+                ),
+                const SizedBox(height: 2),
+                _ReminderRow(
+                  label: 'Weekly review',
+                  sublabel: 'Monday',
+                  time: settings.weeklyReflectionTime,
+                  enabled: settings.weeklyReflectionEnabled,
+                  onToggle: (v) => _updateAndSchedule(
+                      ref, settings.copyWith(weeklyReflectionEnabled: v)),
+                  onTimeTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: settings.weeklyReflectionTime,
+                    );
+                    if (picked != null) {
+                      _updateAndSchedule(ref,
+                          settings.copyWith(weeklyReflectionTime: picked));
+                    }
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            _ReminderRow(
-              label: 'Daily reflection',
-              sublabel: 'Weekdays',
-              time: settings.dailyReflectionTime,
-              enabled: settings.dailyReflectionEnabled,
-              onToggle: (v) => _updateAndSchedule(
-                    ref, settings.copyWith(dailyReflectionEnabled: v)),
-              onTimeTap: () async {
-                final picked = await showTimePicker(
-                  context: context,
-                  initialTime: settings.dailyReflectionTime,
-                );
-                if (picked != null) {
-                  _updateAndSchedule(
-                      ref, settings.copyWith(dailyReflectionTime: picked));
-                }
-              },
+
+            const SizedBox(height: 28),
+
+            // --- Account section ---
+            const _SectionLabel(label: 'ACCOUNT'),
+            const SizedBox(height: 10),
+            _SettingsCard(
+              children: [
+                _SettingsRow(
+                  icon: Icons.lock_outline,
+                  label: 'Change password',
+                  onTap: () {
+                    final email = ref.read(_userEmailProvider).valueOrNull;
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(24)),
+                      ),
+                      builder: (_) => PasswordResetModal(
+                        api: ref.read(apiServiceProvider),
+                        initialEmail: email,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 2),
+                _SettingsRow(
+                  icon: Icons.psychology_outlined,
+                  label: 'AI Coach',
+                  onTap: () => context.push('/coach'),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            _ReminderRow(
-              label: 'Weekly reflection',
-              sublabel: 'Monday',
-              time: settings.weeklyReflectionTime,
-              enabled: settings.weeklyReflectionEnabled,
-              onToggle: (v) => _updateAndSchedule(
-                    ref, settings.copyWith(weeklyReflectionEnabled: v)),
-              onTimeTap: () async {
-                final picked = await showTimePicker(
-                  context: context,
-                  initialTime: settings.weeklyReflectionTime,
-                );
-                if (picked != null) {
-                  _updateAndSchedule(
-                      ref, settings.copyWith(weeklyReflectionTime: picked));
-                }
-              },
+
+            const SizedBox(height: 28),
+
+            // --- Support section ---
+            const _SectionLabel(label: 'SUPPORT'),
+            const SizedBox(height: 10),
+            _SettingsCard(
+              children: [
+                _SettingsRow(
+                  icon: Icons.chat_bubble_outline,
+                  label: 'Send feedback',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Feedback form coming soon.')),
+                    );
+                  },
+                ),
+                const SizedBox(height: 2),
+                _SettingsRow(
+                  icon: Icons.info_outline,
+                  label: 'App version',
+                  trailing: Text(
+                    '1.0.0',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.contentTertiary,
+                        ),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 32),
 
-            // --- Account section ---
-            Text(
-              'ACCOUNT',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppColors.contentSecondary,
-                    letterSpacing: 1.2,
-                  ),
-            ),
-            const SizedBox(height: 12),
+            // Sign out
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
@@ -235,6 +379,47 @@ class SettingsScreen extends ConsumerWidget {
                 child: const Text('Sign out'),
               ),
             ),
+
+            const SizedBox(height: 12),
+
+            // Delete account
+            Center(
+              child: TextButton(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Delete account?'),
+                      content: const Text(
+                          'This will permanently delete your account and all data. This cannot be undone.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text('Delete',
+                              style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed == true) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Account deletion coming soon.')),
+                    );
+                  }
+                },
+                child: Text(
+                  'Delete account',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.red.shade300,
+                      ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -243,7 +428,107 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Reminder row
+// Section label
+// ---------------------------------------------------------------------------
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: AppColors.contentSecondary,
+            letterSpacing: 1.2,
+          ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Settings card container
+// ---------------------------------------------------------------------------
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Generic settings row (icon + label + chevron)
+// ---------------------------------------------------------------------------
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: AppColors.contentSecondary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.content,
+                    ),
+              ),
+            ),
+            if (trailing != null)
+              trailing!
+            else if (onTap != null)
+              const Icon(Icons.chevron_right,
+                  size: 20, color: AppColors.contentTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reminder row (label + time chip + toggle)
 // ---------------------------------------------------------------------------
 
 class _ReminderRow extends StatelessWidget {
@@ -272,13 +557,8 @@ class _ReminderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderSubtle),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           Expanded(
@@ -321,10 +601,15 @@ class _ReminderRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Switch.adaptive(
-            value: enabled,
-            onChanged: onToggle,
-            activeColor: AppColors.kiwi400,
+          SizedBox(
+            height: 24,
+            child: FittedBox(
+              child: Switch.adaptive(
+                value: enabled,
+                onChanged: onToggle,
+                activeTrackColor: AppColors.kiwi400,
+              ),
+            ),
           ),
         ],
       ),
