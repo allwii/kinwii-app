@@ -4,6 +4,7 @@ class Task {
   final String id;
   final String userId;
   final String weeklyPlanId;
+  final String? quarterId;
   final String title;
   final DateTime date;
   final bool completed;
@@ -18,6 +19,7 @@ class Task {
     required this.id,
     required this.userId,
     required this.weeklyPlanId,
+    this.quarterId,
     required this.title,
     required this.date,
     required this.completed,
@@ -35,11 +37,13 @@ class Task {
     String? startTime,
     String? endTime,
     String? skipReason,
+    String? quarterId,
   }) =>
       Task(
         id: id,
         userId: userId,
         weeklyPlanId: weeklyPlanId,
+        quarterId: quarterId ?? this.quarterId,
         title: title,
         date: date,
         completed: completed ?? this.completed,
@@ -55,6 +59,7 @@ class Task {
         id: json['id'],
         userId: json['user_id'],
         weeklyPlanId: json['weekly_plan_id'],
+        quarterId: json['quarter_id'] as String?,
         title: json['title'],
         date: DateTime.parse(json['date']),
         completed: json['completed'] ?? false,
@@ -73,6 +78,7 @@ class Task {
         'id': id,
         'user_id': userId,
         'weekly_plan_id': weeklyPlanId,
+        if (quarterId != null) 'quarter_id': quarterId,
         'title': title,
         'date': date.toIso8601String().split('T').first,
         'completed': completed,

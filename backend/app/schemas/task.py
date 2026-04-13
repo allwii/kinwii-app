@@ -15,6 +15,7 @@ class TaskCreate(BaseModel):
     description: Optional[str] = None
     start_time: Optional[dt.time] = None
     end_time: Optional[dt.time] = None
+    quarter_id: Optional[UUID] = None
 
 
 class TaskUpdate(BaseModel):
@@ -25,6 +26,7 @@ class TaskUpdate(BaseModel):
     start_time: Optional[dt.time] = None
     end_time: Optional[dt.time] = None
     skip_reason: Optional[str] = None
+    quarter_id: Optional[UUID] = None
 
 
 class CarryForwardRequest(BaseModel):
@@ -37,6 +39,7 @@ class TaskResponse(BaseModel):
     id: UUID
     user_id: UUID
     weekly_plan_id: UUID
+    quarter_id: UUID | None = None
     title: str
     date: dt.date
     completed: bool

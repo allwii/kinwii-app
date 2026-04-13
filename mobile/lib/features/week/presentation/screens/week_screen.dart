@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
+import '../../../../core/widgets/task_detail_sheet.dart';
+import '../../../../models/quarterly_goal.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
@@ -58,6 +60,19 @@ final _weekTasksProvider =
     }
   },
 );
+
+final _weekGoalsProvider =
+    FutureProvider.autoDispose<List<QuarterlyGoal>>((ref) async {
+  final api = ref.read(apiServiceProvider);
+  try {
+    final response = await api.get('/goals');
+    return (response.data as List<dynamic>)
+        .map((e) => QuarterlyGoal.fromJson(e as Map<String, dynamic>))
+        .toList();
+  } catch (_) {
+    return [];
+  }
+});
 
 final _aiSuggestionsProvider =
     StateNotifierProvider.autoDispose<_AiSuggestionsNotifier, _AiState>(
@@ -544,6 +559,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                     data: (plan) => plan != null
                         ? _SelectedDayTasks(
                             planId: plan.id,
+                            quarterId: plan.quarterId,
                             selectedDay: _selectedDay,
                           )
                         : const SizedBox.shrink(),
@@ -987,10 +1003,12 @@ class _DaySelector extends StatelessWidget {
 class _SelectedDayTasks extends ConsumerWidget {
   const _SelectedDayTasks({
     required this.planId,
+    required this.quarterId,
     required this.selectedDay,
   });
 
   final String planId;
+  final String? quarterId;
   final DateTime selectedDay;
 
   bool _isSameDay(DateTime a, DateTime b) =>
@@ -999,6 +1017,9 @@ class _SelectedDayTasks extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasksAsync = ref.watch(_weekTasksProvider(planId));
+    // Watch so goals load eagerly and are available by the time the user
+    // taps a task; the sheet falls back to awaiting the future if not ready.
+    ref.watch(_weekGoalsProvider);
 
     return tasksAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -1025,9 +1046,7 @@ class _SelectedDayTasks extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: GestureDetector(
-                onTap: () {
-                  _toggleTask(ref, task.id, planId);
-                },
+                onTap: () => _showTaskDetail(context, ref, task, planId),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 14, vertical: 12),
@@ -1044,26 +1063,29 @@ class _SelectedDayTasks extends ConsumerWidget {
                   ),
                   child: Row(
                   children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(5),
-                        color: task.completed
-                            ? AppColors.kiwi400
-                            : Colors.white,
-                        border: Border.all(
+                    GestureDetector(
+                      onTap: () => _toggleTask(ref, task.id, planId),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(5),
                           color: task.completed
                               ? AppColors.kiwi400
-                              : AppColors.borderSubtle,
-                          width: 1.5,
+                              : Colors.white,
+                          border: Border.all(
+                            color: task.completed
+                                ? AppColors.kiwi400
+                                : AppColors.borderSubtle,
+                            width: 1.5,
+                          ),
                         ),
+                        child: task.completed
+                            ? const Icon(Icons.check,
+                                size: 12, color: Colors.white)
+                            : null,
                       ),
-                      child: task.completed
-                          ? const Icon(Icons.check,
-                              size: 12, color: Colors.white)
-                          : null,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1099,6 +1121,54 @@ class _SelectedDayTasks extends ConsumerWidget {
     } catch (_) {
       // Silent fail
     }
+  }
+
+  Future<void> _showTaskDetail(
+      BuildContext context, WidgetRef ref, Task task, String planId) async {
+    final api = ref.read(apiServiceProvider);
+    // Goals provider is autoDispose; ensure it's loaded before opening.
+    List<QuarterlyGoal> goals;
+    try {
+      goals = await ref.read(_weekGoalsProvider.future);
+    } catch (_) {
+      goals = [];
+    }
+    if (!context.mounted) return;
+
+    // Resolve the current goal name from the plan's quarter_id.
+    String? currentGoalName;
+    if (quarterId != null) {
+      final match = goals.where((g) => g.id == quarterId).toList();
+      if (match.isNotEmpty) currentGoalName = match.first.title;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => TaskDetailSheet(
+        task: task,
+        goals: goals,
+        currentGoalName: currentGoalName,
+        onUpdate: (taskId, fields) async {
+          await api.put('/tasks/$taskId', data: fields);
+          ref.invalidate(_weekTasksProvider(planId));
+        },
+        onDelete: (taskId) async {
+          await api.delete('/tasks/$taskId');
+          ref.invalidate(_weekTasksProvider(planId));
+        },
+        onToggleComplete: (taskId) async {
+          await api.patch('/tasks/$taskId/complete');
+          ref.invalidate(_weekTasksProvider(planId));
+        },
+      ),
+    );
   }
 }
 

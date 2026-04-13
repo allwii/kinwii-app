@@ -29,6 +29,11 @@ class Task(Base):
         ForeignKey("weekly_plans.id", ondelete="CASCADE"),
         nullable=False,
     )
+    quarter_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("quarterly_goals.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     title = Column(String(300), nullable=False)
     date = Column(Date, nullable=False)
     completed = Column(Boolean, default=False)
