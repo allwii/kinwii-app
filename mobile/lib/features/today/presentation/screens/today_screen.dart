@@ -540,6 +540,7 @@ class _TaskTile extends StatelessWidget {
                         color: task.completed
                             ? AppColors.contentTertiary
                             : AppColors.content,
+                        fontWeight: task.completed ? FontWeight.w400 : FontWeight.w500,
                         decoration: task.completed
                             ? TextDecoration.lineThrough
                             : null,

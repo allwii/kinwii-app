@@ -502,7 +502,7 @@ class _FirstDayRow extends ConsumerWidget {
           context: context,
           backgroundColor: Colors.white,
           shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           builder: (_) => Padding(
             padding: const EdgeInsets.all(24),

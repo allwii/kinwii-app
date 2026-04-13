@@ -17,7 +17,7 @@ class PrivacyScreen extends StatelessWidget {
         elevation: 0,
         title: Text(
           'Privacy & Permissions',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: AppColors.content,
               ),
         ),
@@ -57,7 +57,7 @@ class PrivacyScreen extends StatelessWidget {
             'Our promises to you',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.content,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
           ),
           const SizedBox(height: 12),
@@ -171,7 +171,7 @@ class PrivacyScreen extends StatelessWidget {
             'Device Permissions',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.content,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
           ),
           const SizedBox(height: 12),

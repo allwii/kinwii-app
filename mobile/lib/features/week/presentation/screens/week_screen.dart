@@ -317,7 +317,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
               // Header — tappable to open week picker
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: Row(
                     children: [
                       IconButton(

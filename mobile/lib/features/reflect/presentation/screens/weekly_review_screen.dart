@@ -232,7 +232,7 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
           'Weekly review',
           style: Theme.of(context)
               .textTheme
-              .titleMedium
+              .titleLarge
               ?.copyWith(color: AppColors.content),
         ),
         centerTitle: true,
@@ -364,7 +364,7 @@ class _CelebrateStep extends StatelessWidget {
         : 0;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -558,7 +558,7 @@ class _ReflectStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -673,7 +673,7 @@ class _InsightsAndPlanStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

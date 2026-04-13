@@ -41,7 +41,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
         elevation: 0,
         title: Text(
           'Notifications',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: AppColors.content,
               ),
         ),
