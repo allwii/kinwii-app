@@ -1,10 +1,15 @@
 // CoachScreen — AI growth coach chat interface.
+//
+// Opens with a once-per-day Daily Briefing card that synthesizes the user's
+// current goal/intent/tasks. Free-tier users see the briefing headline only
+// as a teaser; body, follow-up chips, and chat input require Pro.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../models/coach_briefing.dart';
 import '../../../../models/coach_message.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
 import '../../../../services/subscription_service.dart';
@@ -20,22 +25,27 @@ final _messagesProvider =
 
 class _ChatState {
   final List<CoachMessage> messages;
+  final CoachBriefing? briefing;
   final bool isLoading;
   final bool isSending;
 
   const _ChatState({
     this.messages = const [],
+    this.briefing,
     this.isLoading = true,
     this.isSending = false,
   });
 
   _ChatState copyWith({
     List<CoachMessage>? messages,
+    CoachBriefing? briefing,
+    bool clearBriefing = false,
     bool? isLoading,
     bool? isSending,
   }) =>
       _ChatState(
         messages: messages ?? this.messages,
+        briefing: clearBriefing ? null : (briefing ?? this.briefing),
         isLoading: isLoading ?? this.isLoading,
         isSending: isSending ?? this.isSending,
       );
@@ -49,16 +59,38 @@ class _MessagesNotifier extends StateNotifier<_ChatState> {
   final Ref _ref;
 
   Future<void> _load() async {
-    try {
-      final api = _ref.read(apiServiceProvider);
-      final resp = await api.get('/coach/messages');
-      final messages = (resp.data as List)
-          .map((m) => CoachMessage.fromJson(m as Map<String, dynamic>))
-          .toList();
-      state = state.copyWith(messages: messages, isLoading: false);
-    } catch (_) {
-      state = state.copyWith(isLoading: false);
+    final api = _ref.read(apiServiceProvider);
+
+    // Fetch messages + briefing in parallel so the first paint includes both
+    // without stacking latencies.
+    final results = await Future.wait([
+      api.get('/coach/messages').then<Object?>((r) => r.data).catchError((_) => null),
+      api.get('/coach/briefing').then<Object?>((r) => r.data).catchError((_) => null),
+    ]);
+
+    final rawMessages = results[0];
+    final rawBriefing = results[1];
+
+    final messages = rawMessages is List
+        ? rawMessages
+            .map((m) => CoachMessage.fromJson(m as Map<String, dynamic>))
+            .toList()
+        : <CoachMessage>[];
+
+    CoachBriefing? briefing;
+    if (rawBriefing is Map<String, dynamic>) {
+      try {
+        briefing = CoachBriefing.fromJson(rawBriefing);
+      } catch (_) {
+        briefing = null;
+      }
     }
+
+    state = state.copyWith(
+      messages: messages,
+      briefing: briefing,
+      isLoading: false,
+    );
   }
 
   Future<void> send(String content) async {
@@ -132,62 +164,28 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
     _send();
   }
 
+  List<String> _dynamicPrompts() {
+    // Lightweight, rules-based starters so the empty state still feels
+    // aware-ish even when the briefing fails to load.
+    final weekday = DateTime.now().weekday;
+    final prompts = <String>[];
+    if (weekday == DateTime.monday) {
+      prompts.add('Help me plan this week');
+    } else if (weekday == DateTime.sunday) {
+      prompts.add('Debrief last week with me');
+    } else {
+      prompts.add('What should I focus on today?');
+    }
+    prompts.add('Am I on track with my goals?');
+    prompts.add("I'm feeling overwhelmed");
+    return prompts;
+  }
+
   @override
   Widget build(BuildContext context) {
     final sub = ref.watch(subscriptionProvider);
-
-    if (!sub.isPro) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          backgroundColor: AppColors.background,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.content),
-            onPressed: () => context.pop(),
-          ),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.psychology,
-                    size: 48, color: AppColors.kiwi400),
-                const SizedBox(height: 16),
-                Text(
-                  'Growth Coach',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: AppColors.content,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Get personalized coaching based on your goals, reflections, and progress.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.contentSecondary,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => context.push('/pro'),
-                    child: const Text('Unlock with Pro'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     final chatState = ref.watch(_messagesProvider);
 
-    // Auto-scroll when messages change
     if (chatState.messages.isNotEmpty) {
       _scrollToBottom();
     }
@@ -197,10 +195,7 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.content),
-          onPressed: () => context.pop(),
-        ),
+        automaticallyImplyLeading: false,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -219,36 +214,204 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
       ),
       body: Column(
         children: [
-          // Messages
           Expanded(
             child: chatState.isLoading
                 ? const Center(
                     child:
                         CircularProgressIndicator(color: AppColors.kiwi400))
-                : chatState.messages.isEmpty
-                    ? _EmptyState(onPrompt: _sendPrompt)
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        itemCount: chatState.messages.length +
-                            (chatState.isSending ? 1 : 0),
-                        itemBuilder: (context, i) {
-                          if (i == chatState.messages.length) {
-                            return const _TypingIndicator();
-                          }
-                          return _MessageBubble(
-                              message: chatState.messages[i]);
-                        },
-                      ),
+                : _buildBody(context, chatState, sub.isPro),
           ),
+          if (sub.isPro)
+            _InputBar(
+              controller: _inputCtrl,
+              isSending: chatState.isSending,
+              onSend: _send,
+            ),
+        ],
+      ),
+    );
+  }
 
-          // Input bar
-          _InputBar(
-            controller: _inputCtrl,
-            isSending: chatState.isSending,
-            onSend: _send,
+  Widget _buildBody(BuildContext context, _ChatState chatState, bool isPro) {
+    final briefing = chatState.briefing;
+    final hasMessages = chatState.messages.isNotEmpty;
+
+    // Case 1: no messages yet and no briefing → show the fallback empty state.
+    if (!hasMessages && briefing == null) {
+      return _EmptyState(
+        onPrompt: isPro ? _sendPrompt : null,
+        prompts: _dynamicPrompts(),
+        isPro: isPro,
+      );
+    }
+
+    // Case 2: briefing present — show it as the first item in the scroll,
+    // followed by any chat history + typing indicator.
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      itemCount: (briefing != null ? 1 : 0) +
+          chatState.messages.length +
+          (chatState.isSending ? 1 : 0),
+      itemBuilder: (context, i) {
+        var index = i;
+        if (briefing != null) {
+          if (index == 0) {
+            return _BriefingCard(
+              briefing: briefing,
+              isPro: isPro,
+              onChipTap: _sendPrompt,
+            );
+          }
+          index -= 1;
+        }
+        if (index == chatState.messages.length) {
+          return const _TypingIndicator();
+        }
+        return _MessageBubble(message: chatState.messages[index]);
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily briefing card — sits at the top of the chat scroll
+// ---------------------------------------------------------------------------
+
+class _BriefingCard extends StatelessWidget {
+  const _BriefingCard({
+    required this.briefing,
+    required this.isPro,
+    required this.onChipTap,
+  });
+
+  final CoachBriefing briefing;
+  final bool isPro;
+  final ValueChanged<String> onChipTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.kiwi50, Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.kiwi100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, size: 16, color: AppColors.kiwi500),
+              const SizedBox(width: 6),
+              Text(
+                "Today's briefing",
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.kiwi600,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            briefing.headline,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+          ),
+          const SizedBox(height: 10),
+          if (isPro && briefing.body != null) ...[
+            Text(
+              briefing.body!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.contentSecondary,
+                    height: 1.5,
+                  ),
+            ),
+            if (briefing.followups.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final chip in briefing.followups)
+                    _FollowupChip(
+                      label: chip,
+                      onTap: () => onChipTap(chip),
+                    ),
+                ],
+              ),
+            ],
+          ] else ...[
+            // Free-tier teaser
+            const SizedBox(height: 4),
+            Text(
+              'Unlock the full briefing and chat with your coach to go deeper.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentSecondary,
+                    height: 1.5,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => GoRouter.of(context).push('/pro'),
+                child: const Text('Unlock with Pro'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FollowupChip extends StatelessWidget {
+  const _FollowupChip({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.kiwi200),
+          ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.kiwi700,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
       ),
     );
   }
@@ -259,14 +422,15 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
 // ---------------------------------------------------------------------------
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onPrompt});
-  final ValueChanged<String> onPrompt;
+  const _EmptyState({
+    required this.onPrompt,
+    required this.prompts,
+    required this.isPro,
+  });
 
-  static const _prompts = [
-    "I'm feeling overwhelmed this week",
-    "Help me prioritize what matters",
-    "Am I on track with my goals?",
-  ];
+  final ValueChanged<String>? onPrompt;
+  final List<String> prompts;
+  final bool isPro;
 
   @override
   Widget build(BuildContext context) {
@@ -299,33 +463,43 @@ class _EmptyState extends StatelessWidget {
                   ?.copyWith(color: AppColors.contentSecondary, height: 1.5),
             ),
             const SizedBox(height: 24),
-            ...List.generate(
-              _prompts.length,
-              (i) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => onPrompt(_prompts[i]),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.borderSubtle),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+            if (!isPro)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => GoRouter.of(context).push('/pro'),
+                  child: const Text('Unlock with Pro'),
+                ),
+              )
+            else
+              ...List.generate(
+                prompts.length,
+                (i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed:
+                          onPrompt == null ? null : () => onPrompt!(prompts[i]),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.borderSubtle),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                    ),
-                    child: Text(
-                      _prompts[i],
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppColors.content),
+                      child: Text(
+                        prompts[i],
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: AppColors.content),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -364,7 +538,7 @@ class _MessageBubble extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -464,7 +638,7 @@ class _InputBar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),

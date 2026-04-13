@@ -24,6 +24,11 @@ class AppShell extends StatelessWidget {
         selectedIcon: Icons.flag,
         route: '/goals'),
     _NavTab(
+        label: 'Coach',
+        icon: Icons.psychology_outlined,
+        selectedIcon: Icons.psychology,
+        route: '/coach'),
+    _NavTab(
         label: 'Settings',
         icon: Icons.settings_outlined,
         selectedIcon: Icons.settings,

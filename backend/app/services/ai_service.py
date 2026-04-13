@@ -67,6 +67,27 @@ to give personalized, grounded advice.
 
 Never say "As an AI" or "I'm just a language model". Just be the coach."""
 
+COACH_BRIEFING_SYSTEM_PROMPT = """You are a calm, perceptive growth coach inside \
+Kinwii, an intentional living app. Given the user's current planning state, \
+write a short, personalized daily briefing that shows you've actually read their \
+goals and week.
+
+Rules:
+- `headline`: ONE sentence, ≤14 words. Warm and specific. Reference one concrete \
+thing from the context (a goal, the week's intent, today's task, a recent skip). \
+No greetings like "Good morning". No emojis.
+- `body`: 2-3 sentences. Cite at least one concrete observation from the data. \
+Offer one small prompt or question that moves the user forward. No lecture, no hype.
+- `followups`: 2 or 3 short chip labels (max 6 words each) that the USER could \
+plausibly tap to reply. Phrase each as something the user would say, not the \
+coach would say ("Help me pick the most meaningful one", "Why do I keep skipping this?"). \
+No questions addressed to the user.
+
+If there is little context (no goal, no intent, no tasks), nudge them warmly \
+toward setting one — don't pretend there's data you don't have.
+
+Return valid JSON only: {"headline": "...", "body": "...", "followups": ["...", "..."]}"""
+
 
 class AIService:
     def __init__(self):
@@ -326,24 +347,22 @@ class AIService:
         except json.JSONDecodeError:
             return content.strip()
 
-    async def coach_respond(
-        self, user: User, history: list[CoachMessage], db: Session
-    ) -> str:
-        # Build user context from their planning data
-        context_parts = []
+    def _build_coach_context(self, user: User, db: Session) -> str:
+        """Assemble the shared planning-context string used by both the coach
+        chat and the daily briefing. Kept in sync in one place so improvements
+        (new data sources, formatting tweaks) benefit both.
+        """
+        context_parts: list[str] = []
 
-        # Mission
         mission = db.query(Mission).filter(Mission.user_id == user.id).first()
         if mission:
             context_parts.append(f"Life mission: {mission.statement}")
 
-        # Roles
         roles = db.query(Role).filter(Role.user_id == user.id).all()
         if roles:
             role_names = ", ".join(r.name for r in roles)
             context_parts.append(f"Life roles: {role_names}")
 
-        # Current goal
         goal = (
             db.query(QuarterlyGoal)
             .filter(
@@ -354,11 +373,14 @@ class AIService:
             .first()
         )
         if goal:
+            weeks_remaining = max(0, (goal.end_date - date.today()).days // 7)
             context_parts.append(
-                f"Current goal: {goal.title} ({goal.progress_percent or 0}% done)"
+                f"Current goal: {goal.title} "
+                f"({goal.progress_percent or 0}% done, {weeks_remaining} weeks left this quarter)"
             )
+            if goal.why:
+                context_parts.append(f"Goal 'why': {goal.why}")
 
-        # Current weekly plan
         plan = (
             db.query(WeeklyPlan)
             .filter(WeeklyPlan.user_id == user.id)
@@ -368,7 +390,6 @@ class AIService:
         if plan:
             context_parts.append(f"This week's intent: {plan.intent}")
 
-        # Latest reflection
         reflection = (
             db.query(WeeklyReflection)
             .filter(WeeklyReflection.user_id == user.id)
@@ -378,9 +399,13 @@ class AIService:
         if reflection and reflection.ai_summary:
             context_parts.append(f"Latest reflection summary: {reflection.ai_summary}")
 
-        context_str = "\n".join(context_parts) if context_parts else "No planning context yet."
+        return "\n".join(context_parts) if context_parts else "No planning context yet."
 
-        # Build messages
+    async def coach_respond(
+        self, user: User, history: list[CoachMessage], db: Session
+    ) -> str:
+        context_str = self._build_coach_context(user, db)
+
         messages = [
             {
                 "role": "system",
@@ -400,6 +425,104 @@ class AIService:
             temperature=0.7,
         )
         return response.choices[0].message.content or "I'm here whenever you're ready to talk."
+
+    async def generate_coach_briefing(self, user: User, db: Session) -> dict:
+        """Generate a personalized daily briefing payload for the coach tab.
+
+        Returns a dict with keys `headline`, `body`, `followups` (list[str]).
+        Callers are responsible for persisting the result; this method does
+        no DB writes of its own.
+        """
+        today = date.today()
+        context_str = self._build_coach_context(user, db)
+
+        # Today's tasks — title, energy, times, completion status.
+        todays_tasks = (
+            db.query(Task)
+            .filter(Task.user_id == user.id, Task.date == today)
+            .order_by(Task.start_time.asc().nullslast(), Task.created_at.asc())
+            .all()
+        )
+        if todays_tasks:
+            task_lines = []
+            for t in todays_tasks:
+                time_str = ""
+                if t.start_time:
+                    time_str = f" @ {t.start_time.strftime('%H:%M')}"
+                    if t.end_time:
+                        time_str += f"-{t.end_time.strftime('%H:%M')}"
+                task_lines.append(
+                    f"- {'[x]' if t.completed else '[ ]'} {t.title} "
+                    f"({t.energy_type.value}{time_str})"
+                )
+            todays_tasks_str = "\n".join(task_lines)
+        else:
+            todays_tasks_str = "(no tasks planned for today)"
+
+        # Skip / incompletion pattern over the last 7 days.
+        week_ago = today - timedelta(days=7)
+        recent_skips = (
+            db.query(Task)
+            .filter(
+                Task.user_id == user.id,
+                Task.date >= week_ago,
+                Task.date < today,
+                Task.completed.is_(False),
+            )
+            .all()
+        )
+        if recent_skips:
+            # Summarize: how many un-completed, and any titles that appear 2+ times.
+            from collections import Counter
+
+            title_counts = Counter(t.title for t in recent_skips)
+            repeated = [f'"{title}" (×{n})' for title, n in title_counts.items() if n >= 2]
+            skip_summary = f"{len(recent_skips)} tasks uncompleted in the last 7 days"
+            if repeated:
+                skip_summary += f"; repeatedly skipped: {', '.join(repeated)}"
+        else:
+            skip_summary = "no skipped or uncompleted tasks in the last 7 days"
+
+        day_name = today.strftime("%A")
+
+        user_prompt = (
+            f"Today is {day_name}, {today.isoformat()}.\n\n"
+            f"User's planning context:\n{context_str}\n\n"
+            f"Today's tasks:\n{todays_tasks_str}\n\n"
+            f"Recent pattern: {skip_summary}"
+        )
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": COACH_BRIEFING_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_completion_tokens=300,
+            temperature=0.7,
+            response_format={"type": "json_object"},
+        )
+        content = response.choices[0].message.content or "{}"
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            data = {}
+
+        headline = (data.get("headline") or "").strip()
+        body = (data.get("body") or "").strip()
+        followups_raw = data.get("followups") or []
+        followups = [str(f).strip() for f in followups_raw if str(f).strip()][:3]
+
+        # Minimal sanity fallback so the endpoint never returns empty strings.
+        if not headline:
+            headline = "Ready when you are."
+        if not body:
+            body = (
+                "I don't have much context yet. Set a goal or a weekly intent "
+                "and I'll have more to say tomorrow."
+            )
+
+        return {"headline": headline, "body": body, "followups": followups}
 
 
 _ai_service: AIService | None = None

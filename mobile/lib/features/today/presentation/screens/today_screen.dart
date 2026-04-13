@@ -5,7 +5,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
@@ -418,31 +417,16 @@ class TodayScreen extends ConsumerWidget {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // Date header + coach icon
+              // Date header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          DateFormat('EEEE, MMM d').format(today),
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineLarge
-                              ?.copyWith(color: AppColors.content),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => context.push('/coach'),
-                        icon: const Icon(
-                          Icons.psychology,
-                          color: AppColors.kiwi500,
-                          size: 22,
-                        ),
-                        tooltip: 'Growth Coach',
-                      ),
-                    ],
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
+                  child: Text(
+                    DateFormat('EEEE, MMM d').format(today),
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineLarge
+                        ?.copyWith(color: AppColors.content),
                   ),
                 ),
               ),

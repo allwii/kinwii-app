@@ -7,6 +7,7 @@ from app.models.task import Task, EnergyType
 from app.models.reflection import WeeklyReflection
 from app.models.daily_intent import DailyIntent
 from app.models.coach_message import CoachMessage
+from app.models.coach_briefing import CoachBriefing
 
 __all__ = [
     "User",
@@ -19,4 +20,5 @@ __all__ = [
     "WeeklyReflection",
     "DailyIntent",
     "CoachMessage",
+    "CoachBriefing",
 ]

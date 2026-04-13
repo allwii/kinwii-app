@@ -62,10 +62,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const MissionScreen(),
       ),
       GoRoute(
-        path: '/coach',
-        builder: (context, state) => const CoachScreen(),
-      ),
-      GoRoute(
         path: '/pro',
         builder: (context, state) => const PaywallScreen(),
       ),
@@ -115,6 +111,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ),
               ),
             ],
+          ),
+          GoRoute(
+            path: '/coach',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: CoachScreen(),
+            ),
           ),
           GoRoute(
             path: '/settings',

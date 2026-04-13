@@ -55,3 +55,4 @@ class User(Base):
     reflections = relationship("WeeklyReflection", back_populates="user", cascade="all, delete-orphan")
     daily_intents = relationship("DailyIntent", back_populates="user", cascade="all, delete-orphan")
     coach_messages = relationship("CoachMessage", back_populates="user", cascade="all, delete-orphan")
+    coach_briefings = relationship("CoachBriefing", back_populates="user", cascade="all, delete-orphan")
