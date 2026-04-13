@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -92,7 +93,8 @@ async def delete_me(
     db: Session = Depends(get_db),
 ):
     """Permanently delete the current user and all associated data."""
-    db.delete(current_user)
+    # Use raw SQL DELETE to let database-level ON DELETE CASCADE handle cleanup
+    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(current_user.id)})
     db.commit()
 
 

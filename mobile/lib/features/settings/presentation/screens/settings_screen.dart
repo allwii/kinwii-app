@@ -246,19 +246,19 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () async {
                     final confirmed = await showDialog<bool>(
                       context: context,
-                      builder: (_) => AlertDialog(
+                      builder: (dialogContext) => AlertDialog(
                         title: const Text('Delete account?'),
                         content: const Text(
                             'This will permanently delete your account and all data. This cannot be undone.'),
                         actions: [
                           TextButton(
                             onPressed: () =>
-                                Navigator.of(context).pop(false),
+                                Navigator.of(dialogContext).pop(false),
                             child: const Text('Cancel'),
                           ),
                           TextButton(
                             onPressed: () =>
-                                Navigator.of(context).pop(true),
+                                Navigator.of(dialogContext).pop(true),
                             child: const Text('Delete',
                                 style: TextStyle(color: Colors.red)),
                           ),
@@ -268,16 +268,9 @@ class SettingsScreen extends ConsumerWidget {
                     if (confirmed == true && context.mounted) {
                       try {
                         await ref.read(apiServiceProvider).delete('/auth/me');
-                        await ref.read(authServiceProvider).logout();
-                        if (context.mounted) context.go('/auth/login');
-                      } catch (_) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Could not delete account. Try again.')),
-                          );
-                        }
-                      }
+                      } catch (_) {}
+                      await ref.read(authServiceProvider).logout();
+                      if (context.mounted) context.go('/auth/login');
                     }
                   },
                 ),

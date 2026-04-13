@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../services/google_auth_service.dart';
 import '../../../../services/subscription_service.dart';
@@ -60,21 +61,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _submitOnboardingData(dynamic api, Map<String, dynamic> data) async {
-    // Create goal
+    final title = data['goal_title'] as String? ?? '';
+    if (title.isEmpty) return;
+
+    final now = DateTime.now();
+    final startDate = data['start_date'] ?? DateFormat('yyyy-MM-dd').format(now);
+    final endDate = data['end_date'] ??
+        DateFormat('yyyy-MM-dd').format(DateTime(now.year, now.month + 3, now.day));
+
     final goalResponse = await api.post('/goals', data: {
-      'title': data['goal_title'],
+      'title': title,
       'why': data['goal_why'] ?? '',
-      'start_date': data['start_date'],
-      'end_date': data['end_date'],
+      'start_date': startDate,
+      'end_date': endDate,
     });
 
     final goalId = goalResponse.data['id'] as String;
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final weekStart = data['week_start_date'] ?? DateFormat('yyyy-MM-dd').format(monday);
 
-    // Create first weekly plan
     await api.post('/week', data: {
       'quarter_id': goalId,
-      'week_start_date': data['week_start_date'],
-      'intent': data['intent'],
+      'week_start_date': weekStart,
+      'intent': data['intent'] ?? 'Focus on: $title',
     });
   }
 
