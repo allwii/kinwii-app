@@ -5,6 +5,7 @@ from app.api.routes_ai import router as ai_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_analytics import router as analytics_router
 from app.api.routes_coach import router as coach_router
+from app.api.routes_feedback import router as feedback_router
 from app.api.routes_notifications import router as notifications_router
 from app.api.routes_subscription import router as subscription_router
 from app.api.routes_daily import router as daily_router
@@ -34,6 +35,7 @@ app.include_router(reflection_router)
 app.include_router(ai_router)
 app.include_router(analytics_router)
 app.include_router(coach_router)
+app.include_router(feedback_router)
 app.include_router(notifications_router)
 app.include_router(subscription_router)
 

@@ -6,6 +6,8 @@ import '../features/goals/presentation/screens/goal_detail_screen.dart';
 import '../features/goals/presentation/screens/goals_screen.dart';
 import '../features/mission/presentation/screens/mission_screen.dart';
 import '../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../features/settings/presentation/screens/notification_settings_screen.dart';
+import '../features/settings/presentation/screens/privacy_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
 import '../features/coach/presentation/screens/coach_screen.dart';
 import '../features/reflect/presentation/screens/weekly_review_screen.dart';
@@ -70,6 +72,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/analytics',
         builder: (context, state) => const AnalyticsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/privacy',
+        builder: (context, state) => const PrivacyScreen(),
       ),
       GoRoute(
         path: '/reflect/review/:id',

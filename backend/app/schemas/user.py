@@ -17,12 +17,17 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: UUID
     email: str
+    name: str | None = None
     created_at: datetime
     subscription_tier: str = "free"
     trial_end_date: datetime | None = None
     subscription_expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class UserProfileUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
 
 
 class TokenResponse(BaseModel):

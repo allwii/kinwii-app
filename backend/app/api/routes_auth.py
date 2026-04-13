@@ -23,6 +23,7 @@ from app.schemas.user import (
     ResetPasswordRequest,
     TokenResponse,
     UserCreate,
+    UserProfileUpdate,
     UserResponse,
 )
 from app.services.email_service import send_reset_code_email
@@ -82,6 +83,19 @@ async def login(body: UserCreate, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_me(
+    body: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if body.name is not None:
+        current_user.name = body.name
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 
