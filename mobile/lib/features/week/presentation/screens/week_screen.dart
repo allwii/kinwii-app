@@ -139,17 +139,24 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
   bool _editingIntent = false;
   bool _suggestingIntent = false;
   final _intentController = TextEditingController();
+  final _intentFocusNode = FocusNode();
   late DateTime _selectedDay;
 
   @override
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
+    _intentFocusNode.addListener(() {
+      if (!_intentFocusNode.hasFocus && _editingIntent) {
+        setState(() => _editingIntent = false);
+      }
+    });
   }
 
   @override
   void dispose() {
     _intentController.dispose();
+    _intentFocusNode.dispose();
     super.dispose();
   }
 
@@ -393,6 +400,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                                 isEditing: _editingIntent,
                                 isSuggestingIntent: _suggestingIntent,
                                 intentController: _intentController,
+                                focusNode: _intentFocusNode,
                                 onEditTap: () {
                                   _intentController.text = plan.intent;
                                   setState(() => _editingIntent = true);
@@ -564,6 +572,7 @@ class _IntentCard extends StatelessWidget {
     required this.isEditing,
     required this.isSuggestingIntent,
     required this.intentController,
+    required this.focusNode,
     required this.onEditTap,
     required this.onSave,
     required this.onCancel,
@@ -574,6 +583,7 @@ class _IntentCard extends StatelessWidget {
   final bool isEditing;
   final bool isSuggestingIntent;
   final TextEditingController intentController;
+  final FocusNode focusNode;
   final VoidCallback onEditTap;
   final VoidCallback onSave;
   final VoidCallback onCancel;
@@ -596,12 +606,12 @@ class _IntentCard extends StatelessWidget {
                     ),
               ),
               const Spacer(),
-              if (!isEditing)
+              if (isEditing)
                 GestureDetector(
-                  onTap: onEditTap,
+                  onTap: onSave,
                   child: const Icon(
-                    Icons.edit_outlined,
-                    size: 16,
+                    Icons.check,
+                    size: 20,
                     color: AppColors.kiwi500,
                   ),
                 ),
@@ -611,17 +621,29 @@ class _IntentCard extends StatelessWidget {
           if (isEditing) ...[
             TextField(
               controller: intentController,
+              focusNode: focusNode,
               autofocus: true,
-              maxLines: 2,
+              maxLines: 3,
+              minLines: 1,
               textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => onSave(),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.content,
+                    fontWeight: FontWeight.w500,
+                  ),
               decoration: const InputDecoration(
                 hintText: 'What do you want to achieve this week?',
-                filled: true,
-                fillColor: Colors.white,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
               ),
             ),
             if (plan.quarterId != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               GestureDetector(
                 onTap: isSuggestingIntent ? null : onSuggestIntent,
                 child: Container(
@@ -665,36 +687,18 @@ class _IntentCard extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: onCancel,
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: onSave,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                  ),
-                  child: const Text('Save'),
-                ),
-              ],
-            ),
           ] else ...[
-            Text(
-              plan.intent,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.content,
-                    fontWeight: FontWeight.w500,
-                  ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            GestureDetector(
+              onTap: onEditTap,
+              child: Text(
+                plan.intent,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.content,
+                      fontWeight: FontWeight.w500,
+                    ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             if (plan.progressPercent > 0) ...[
               const SizedBox(height: 10),
