@@ -969,14 +969,26 @@ class _SelectedDayTasks extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: dayTasks.map((task) {
             return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 12),
               child: GestureDetector(
                 onTap: () {
-                  ref.read(_weekTasksProvider(planId));
-                  // Toggle completion
                   _toggleTask(ref, task.id, planId);
                 },
-                child: Row(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
                   children: [
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -1015,6 +1027,7 @@ class _SelectedDayTasks extends ConsumerWidget {
                       ),
                     ),
                   ],
+                ),
                 ),
               ),
             );
