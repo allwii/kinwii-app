@@ -1,9 +1,12 @@
 // TodayScreen - "What should I focus on right now?"
 // Simplified: task list + AI suggestions + daily reflection (evening).
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -242,6 +245,73 @@ class _DailyFocusNotifier extends StateNotifier<AsyncValue<List<String>>> {
 }
 
 // ---------------------------------------------------------------------------
+// Daily execution tips
+// ---------------------------------------------------------------------------
+
+const _dailyTips = <({String emoji, String title, String body})>[
+  (
+    emoji: '🐸',
+    title: 'Eat the frog',
+    body: 'Do your hardest task first — your focus is strongest in the morning.',
+  ),
+  (
+    emoji: '🎯',
+    title: 'Rule of 3',
+    body: 'Pick 3 tasks that would make today a win. Focus on those.',
+  ),
+  (
+    emoji: '🧱',
+    title: 'Block your time',
+    body: 'Block 90 minutes for deep work. Protect it like a meeting.',
+  ),
+  (
+    emoji: '⏰',
+    title: 'Set a time',
+    body: 'Setting a specific time for a task doubles your follow-through.',
+  ),
+  (
+    emoji: '📦',
+    title: 'Batch similar tasks',
+    body: 'Group emails, messages, and admin into one block. Saves 40 min/day.',
+  ),
+  (
+    emoji: '⚡',
+    title: 'Match your energy',
+    body: 'Deep work when fresh. Routine tasks when tired.',
+  ),
+  (
+    emoji: '🔬',
+    title: 'One thing at a time',
+    body: 'Every context switch costs 23 min of refocus. Single-task for flow.',
+  ),
+  (
+    emoji: '📋',
+    title: 'Clear deliverables',
+    body: 'Every task should have an output. "Draft v1" beats "work on proposal".',
+  ),
+  (
+    emoji: '🌅',
+    title: 'Plan tonight',
+    body: 'Spend 5 min tonight planning tomorrow. Wake up with clarity.',
+  ),
+  (
+    emoji: '🛡️',
+    title: 'Protect mornings',
+    body: 'No meetings before 11am = 2 hours of deep work every day.',
+  ),
+  (
+    emoji: '💆',
+    title: 'Rest to recharge',
+    body: 'Your brain cycles in 90-min blocks. Take 10 min to recharge.',
+  ),
+  (
+    emoji: '✨',
+    title: 'Start small',
+    body: 'If a task feels overwhelming, commit to just 5 minutes. Momentum follows.',
+  ),
+];
+
+// ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
@@ -324,6 +394,14 @@ class TodayScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                ),
+              ),
+
+              // Daily tip card
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: const _DailyTipCard(),
                 ),
               ),
 
@@ -1024,12 +1102,16 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                     color: AppColors.content,
                     fontWeight: FontWeight.w600,
                   ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
                 filled: false,
-                hintText: 'What task do you need to focus on?',
+                hintText: 'What do you need to focus on?',
+                hintStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.contentTertiary,
+                      fontWeight: FontWeight.w400,
+                    ),
                 contentPadding: EdgeInsets.zero,
                 isDense: true,
               ),
@@ -1046,7 +1128,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                 child: Text(
                   _descCtrl.text.isNotEmpty
                       ? _descCtrl.text
-                      : 'Add details, deliverables, or notes...',
+                      : 'What\u2019s the deliverable? e.g. "Draft v1 of proposal"',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: _descCtrl.text.isNotEmpty
                             ? AppColors.contentSecondary
@@ -1647,6 +1729,134 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
 // Daily reflection entry card → opens wizard
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Daily tip card — one tip per day, dismissible, persisted in Hive
+// ---------------------------------------------------------------------------
+
+class _DailyTipCard extends StatefulWidget {
+  const _DailyTipCard();
+
+  @override
+  State<_DailyTipCard> createState() => _DailyTipCardState();
+}
+
+class _DailyTipCardState extends State<_DailyTipCard> {
+  bool _dismissed = false;
+  bool _loaded = false;
+  int _tipIndex = 0;
+  late final Timer _timer;
+
+  static String get _todayKey =>
+      'daily_tip_dismissed_${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
+
+  @override
+  void initState() {
+    super.initState();
+    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year)).inDays;
+    _tipIndex = dayOfYear % _dailyTips.length;
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted && !_dismissed) {
+        setState(() => _tipIndex = (_tipIndex + 1) % _dailyTips.length);
+      }
+    });
+    _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadStatus() async {
+    final box = await Hive.openBox('kinwii_flags');
+    final dismissed = box.get(_todayKey, defaultValue: false);
+    if (mounted) {
+      setState(() {
+        _dismissed = dismissed;
+        _loaded = true;
+      });
+    }
+  }
+
+  Future<void> _dismiss() async {
+    _timer.cancel();
+    final box = await Hive.openBox('kinwii_flags');
+    await box.put(_todayKey, true);
+    if (mounted) setState(() => _dismissed = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _dismissed) return const SizedBox.shrink();
+
+    final tip = _dailyTips[_tipIndex];
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      child: Container(
+        key: ValueKey(_tipIndex),
+        padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.kiwi50,
+              AppColors.kiwi50.withValues(alpha: 0.5),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(tip.emoji, style: const TextStyle(fontSize: 24)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tip.title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppColors.kiwi700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tip.body,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.kiwi600,
+                        height: 1.4,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: _dismiss,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Icons.close,
+                size: 16,
+                color: AppColors.kiwi400.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily reflection entry card → opens wizard
+// ---------------------------------------------------------------------------
+
 class _DailyReflectionCard extends StatefulWidget {
   const _DailyReflectionCard({required this.tasks});
 
@@ -1658,6 +1868,28 @@ class _DailyReflectionCard extends StatefulWidget {
 
 class _DailyReflectionCardState extends State<_DailyReflectionCard> {
   bool _completed = false;
+
+  static String get _todayKey =>
+      'daily_reflection_${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final box = await Hive.openBox('kinwii_flags');
+    if (mounted) {
+      setState(() => _completed = box.get(_todayKey, defaultValue: false));
+    }
+  }
+
+  Future<void> _markComplete() async {
+    final box = await Hive.openBox('kinwii_flags');
+    await box.put(_todayKey, true);
+    if (mounted) setState(() => _completed = true);
+  }
 
   Future<void> _openWizard() async {
     await showModalBottomSheet(
@@ -1671,8 +1903,8 @@ class _DailyReflectionCardState extends State<_DailyReflectionCard> {
       ),
       builder: (_) => _DailyReflectionWizard(tasks: widget.tasks),
     );
-    // Wizard was dismissed — mark as complete
-    if (mounted) setState(() => _completed = true);
+    // Wizard was dismissed — persist completion for today
+    await _markComplete();
   }
 
   @override

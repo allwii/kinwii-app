@@ -270,7 +270,7 @@ class SettingsScreen extends ConsumerWidget {
                         await ref.read(apiServiceProvider).delete('/auth/me');
                       } catch (_) {}
                       await ref.read(authServiceProvider).logout();
-                      if (context.mounted) context.go('/auth/login');
+                      if (context.mounted) context.go('/onboarding');
                     }
                   },
                 ),
