@@ -9,7 +9,8 @@ class Task {
   final bool completed;
   final EnergyType energyType;
   final String? description;
-  final String? time;
+  final String? startTime;
+  final String? endTime;
   final String? skipReason;
   final DateTime createdAt;
 
@@ -22,7 +23,8 @@ class Task {
     required this.completed,
     required this.energyType,
     this.description,
-    this.time,
+    this.startTime,
+    this.endTime,
     this.skipReason,
     required this.createdAt,
   });
@@ -30,7 +32,8 @@ class Task {
   Task copyWith({
     bool? completed,
     String? description,
-    String? time,
+    String? startTime,
+    String? endTime,
     String? skipReason,
   }) =>
       Task(
@@ -42,7 +45,8 @@ class Task {
         completed: completed ?? this.completed,
         energyType: energyType,
         description: description ?? this.description,
-        time: time ?? this.time,
+        startTime: startTime ?? this.startTime,
+        endTime: endTime ?? this.endTime,
         skipReason: skipReason ?? this.skipReason,
         createdAt: createdAt,
       );
@@ -59,7 +63,8 @@ class Task {
           orElse: () => EnergyType.deep,
         ),
         description: json['description'] as String?,
-        time: json['time'] as String?,
+        startTime: json['start_time'] as String?,
+        endTime: json['end_time'] as String?,
         skipReason: json['skip_reason'] as String?,
         createdAt: DateTime.parse(json['created_at']),
       );
@@ -73,7 +78,8 @@ class Task {
         'completed': completed,
         'energy_type': energyType.name,
         if (description != null) 'description': description,
-        if (time != null) 'time': time,
+        if (startTime != null) 'start_time': startTime,
+        if (endTime != null) 'end_time': endTime,
         if (skipReason != null) 'skip_reason': skipReason,
         'created_at': createdAt.toIso8601String(),
       };

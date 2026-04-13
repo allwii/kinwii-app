@@ -34,7 +34,8 @@ class Task(Base):
     completed = Column(Boolean, default=False)
     energy_type = Column(Enum(EnergyType), default=EnergyType.deep)
     description = Column(Text, nullable=True)
-    time = Column(Time, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
     skip_reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

@@ -118,7 +118,8 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
     required String title,
     required EnergyType energyType,
     String? description,
-    String? time,
+    String? startTime,
+    String? endTime,
   }) async {
     try {
       final api = _ref.read(apiServiceProvider);
@@ -130,7 +131,8 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
         'energy_type': energyType.name,
         if (description != null && description.isNotEmpty)
           'description': description,
-        if (time != null) 'time': time,
+        if (startTime != null) 'start_time': startTime,
+        if (endTime != null) 'end_time': endTime,
       });
       final newTask = Task.fromJson(response.data as Map<String, dynamic>);
       final current = state.valueOrNull ?? [];
@@ -578,7 +580,8 @@ class _TaskTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasSecondRow = task.time != null || goalName != null;
+    final hasTime = task.startTime != null || task.endTime != null;
+    final hasSecondRow = hasTime || goalName != null;
     return KinwiiCard(
       onTap: onTap,
       child: Row(
@@ -642,12 +645,12 @@ class _TaskTile extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      if (task.time != null) ...[
+                      if (hasTime) ...[
                         const Icon(Icons.schedule,
                             size: 12, color: AppColors.contentTertiary),
                         const SizedBox(width: 3),
                         Text(
-                          _formatTime(task.time!),
+                          _formatTimeRange(task.startTime, task.endTime),
                           style: Theme.of(context)
                               .textTheme
                               .labelSmall
@@ -688,7 +691,7 @@ class _TaskTile extends StatelessWidget {
     );
   }
 
-  String _formatTime(String timeStr) {
+  String _formatTimeStr(String timeStr) {
     try {
       final parts = timeStr.split(':');
       final hour = int.parse(parts[0]);
@@ -701,6 +704,15 @@ class _TaskTile extends StatelessWidget {
     } catch (_) {
       return timeStr;
     }
+  }
+
+  String _formatTimeRange(String? start, String? end) {
+    if (start != null && end != null) {
+      return '${_formatTimeStr(start)} – ${_formatTimeStr(end)}';
+    }
+    if (start != null) return _formatTimeStr(start);
+    if (end != null) return 'until ${_formatTimeStr(end)}';
+    return '';
   }
 }
 
@@ -809,7 +821,8 @@ class _AddTaskSheet extends ConsumerStatefulWidget {
 class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   late final TextEditingController _titleCtrl;
   final _descCtrl = TextEditingController();
-  TimeOfDay? _time;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
   bool _loading = false;
   bool _descFullView = false;
   String? _selectedGoalId;
@@ -860,10 +873,15 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     try {
       final planId =
           await _resolveWeeklyPlanId(_selectedGoalId!, _selectedGoalName!);
-      String? timeStr;
-      if (_time != null) {
-        timeStr =
-            '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}:00';
+      String? startStr;
+      String? endStr;
+      if (_startTime != null) {
+        startStr =
+            '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}:00';
+      }
+      if (_endTime != null) {
+        endStr =
+            '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}:00';
       }
       await widget.notifier.addTask(
         weeklyPlanId: planId,
@@ -871,7 +889,8 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         energyType: EnergyType.deep,
         description:
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-        time: timeStr,
+        startTime: startStr,
+        endTime: endStr,
       );
       widget.onTaskAdded?.call();
       if (mounted) Navigator.of(context).pop();
@@ -922,12 +941,20 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     );
   }
 
-  Future<void> _pickTime() async {
+  Future<void> _pickStartTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: _time ?? TimeOfDay.now(),
+      initialTime: _startTime ?? TimeOfDay.now(),
     );
-    if (picked != null) setState(() => _time = picked);
+    if (picked != null) setState(() => _startTime = picked);
+  }
+
+  Future<void> _pickEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ?? _startTime?.replacing(hour: (_startTime!.hour + 1) % 24) ?? TimeOfDay.now(),
+    );
+    if (picked != null) setState(() => _endTime = picked);
   }
 
   String _formatTimeOfDay(TimeOfDay t) {
@@ -1029,7 +1056,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
             const SizedBox(height: 16),
 
-            // Row 2: Today + time
+            // Row 2: Today + start/end time
             Row(
               children: [
                 const Icon(Icons.today,
@@ -1042,25 +1069,9 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                         fontWeight: FontWeight.w500,
                       ),
                 ),
-                if (_time != null) ...[
-                  Text(
-                    ', ${_formatTimeOfDay(_time!)}',
-                    style:
-                        Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.content,
-                              fontWeight: FontWeight.w500,
-                            ),
-                  ),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () => setState(() => _time = null),
-                    child: const Icon(Icons.close,
-                        size: 14, color: AppColors.contentTertiary),
-                  ),
-                ],
                 const SizedBox(width: 12),
                 GestureDetector(
-                  onTap: _pickTime,
+                  onTap: _pickStartTime,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
@@ -1068,26 +1079,62 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                       borderRadius: BorderRadius.circular(8),
                       color: AppColors.surfaceAlt,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.schedule,
-                            size: 14,
-                            color: AppColors.contentTertiary),
-                        const SizedBox(width: 4),
-                        Text(
-                          _time != null ? 'Change' : 'Set time',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(
-                                color: AppColors.contentTertiary,
-                              ),
-                        ),
-                      ],
+                    child: Text(
+                      _startTime != null
+                          ? _formatTimeOfDay(_startTime!)
+                          : 'Start',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(
+                            color: _startTime != null
+                                ? AppColors.content
+                                : AppColors.contentTertiary,
+                          ),
                     ),
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text('–',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.contentTertiary)),
+                ),
+                GestureDetector(
+                  onTap: _pickEndTime,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.surfaceAlt,
+                    ),
+                    child: Text(
+                      _endTime != null
+                          ? _formatTimeOfDay(_endTime!)
+                          : 'End',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(
+                            color: _endTime != null
+                                ? AppColors.content
+                                : AppColors.contentTertiary,
+                          ),
+                    ),
+                  ),
+                ),
+                if (_startTime != null || _endTime != null) ...[
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _startTime = null;
+                      _endTime = null;
+                    }),
+                    child: const Icon(Icons.close,
+                        size: 14, color: AppColors.contentTertiary),
+                  ),
+                ],
               ],
             ),
 
@@ -1262,7 +1309,8 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   late TextEditingController _descCtrl;
   late DateTime _date;
   late String? _selectedGoalName;
-  TimeOfDay? _time;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
   bool _saving = false;
   bool _dirty = false;
   bool _descFullView = false;
@@ -1274,10 +1322,17 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     _descCtrl = TextEditingController(text: widget.task.description ?? '');
     _selectedGoalName = widget.currentGoalName;
     _date = widget.task.date;
-    if (widget.task.time != null) {
+    if (widget.task.startTime != null) {
       try {
-        final parts = widget.task.time!.split(':');
-        _time = TimeOfDay(
+        final parts = widget.task.startTime!.split(':');
+        _startTime = TimeOfDay(
+            hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      } catch (_) {}
+    }
+    if (widget.task.endTime != null) {
+      try {
+        final parts = widget.task.endTime!.split(':');
+        _endTime = TimeOfDay(
             hour: int.parse(parts[0]), minute: int.parse(parts[1]));
       } catch (_) {}
     }
@@ -1295,34 +1350,24 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   }
 
   bool get _isOverdue {
-    if (_time == null) return false;
+    if (_endTime == null && _startTime == null) return false;
     final now = DateTime.now();
+    final checkTime = _endTime ?? _startTime!;
     final taskDateTime = DateTime(
-        _date.year, _date.month, _date.day, _time!.hour, _time!.minute);
+        _date.year, _date.month, _date.day, checkTime.hour, checkTime.minute);
     return taskDateTime.isBefore(now) && !widget.task.completed;
   }
 
-  String get _dateTimeLabel {
+  String get _dateLabel {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final taskDay = DateTime(_date.year, _date.month, _date.day);
     final diff = taskDay.difference(today).inDays;
 
-    String dayPart;
-    if (diff == 0) {
-      dayPart = 'Today';
-    } else if (diff == 1) {
-      dayPart = 'Tomorrow';
-    } else if (diff == -1) {
-      dayPart = 'Yesterday';
-    } else {
-      dayPart = DateFormat('EEE, MMM d').format(_date);
-    }
-
-    if (_time != null) {
-      return '$dayPart, ${_formatTimeOfDay(_time!)}';
-    }
-    return dayPart;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    if (diff == -1) return 'Yesterday';
+    return DateFormat('EEE, MMM d').format(_date);
   }
 
   Future<void> _save() async {
@@ -1330,10 +1375,15 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     if (title.isEmpty) return;
     setState(() => _saving = true);
 
-    String? timeStr;
-    if (_time != null) {
-      timeStr =
-          '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}:00';
+    String? startStr;
+    String? endStr;
+    if (_startTime != null) {
+      startStr =
+          '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}:00';
+    }
+    if (_endTime != null) {
+      endStr =
+          '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}:00';
     }
 
     try {
@@ -1342,7 +1392,8 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
         'description':
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'date': DateFormat('yyyy-MM-dd').format(_date),
-        if (timeStr != null) 'time': timeStr,
+        if (startStr != null) 'start_time': startStr,
+        if (endStr != null) 'end_time': endStr,
       });
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
@@ -1355,8 +1406,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  Future<void> _pickDateTime() async {
-    // Pick date first
+  Future<void> _pickDate() async {
     final pickedDate = await showDatePicker(
       context: context,
       initialDate: _date,
@@ -1370,18 +1420,40 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
       ),
     );
     if (pickedDate == null || !mounted) return;
-
-    // Then pick time
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: _time ?? TimeOfDay.now(),
-    );
-
     setState(() {
       _date = pickedDate;
-      if (pickedTime != null) _time = pickedTime;
       _dirty = true;
     });
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime ?? TimeOfDay.now(),
+      helpText: 'Start time',
+    );
+    if (picked != null) {
+      setState(() {
+        _startTime = picked;
+        _dirty = true;
+      });
+    }
+  }
+
+  Future<void> _pickEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ??
+          _startTime?.replacing(hour: (_startTime!.hour + 1) % 24) ??
+          TimeOfDay.now(),
+      helpText: 'End time',
+    );
+    if (picked != null) {
+      setState(() {
+        _endTime = picked;
+        _dirty = true;
+      });
+    }
   }
 
   String _formatTimeOfDay(TimeOfDay t) {
@@ -1562,7 +1634,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
 
         const SizedBox(height: 12),
 
-        // Row 2: Checkmark + date/time
+        // Row 2: Checkmark + date + start/end time chips
         Row(
           children: [
             GestureDetector(
@@ -1593,15 +1665,81 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
             ),
             const SizedBox(width: 10),
             GestureDetector(
-              onTap: _pickDateTime,
+              onTap: _pickDate,
               child: Text(
-                _dateTimeLabel,
+                _dateLabel,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: _isOverdue ? Colors.red : AppColors.content,
                       fontWeight: FontWeight.w500,
                     ),
               ),
             ),
+            if (_startTime != null || _endTime != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                ',',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.contentSecondary,
+                    ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: _pickStartTime,
+                child: Text(
+                  _startTime != null ? _formatTimeOfDay(_startTime!) : 'Start',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _isOverdue ? Colors.red : AppColors.content,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text('–',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.contentTertiary,
+                        )),
+              ),
+              GestureDetector(
+                onTap: _pickEndTime,
+                child: Text(
+                  _endTime != null ? _formatTimeOfDay(_endTime!) : 'End',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _isOverdue ? Colors.red : AppColors.content,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => setState(() {
+                  _startTime = null;
+                  _endTime = null;
+                  _dirty = true;
+                }),
+                child: const Icon(Icons.close,
+                    size: 14, color: AppColors.contentTertiary),
+              ),
+            ] else ...[
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: _pickStartTime,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.schedule,
+                        size: 14, color: AppColors.contentTertiary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Add time',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.contentTertiary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ],
