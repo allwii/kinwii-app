@@ -1026,7 +1026,15 @@ class _SelectedDayTasks extends ConsumerWidget {
       error: (_, __) => const SizedBox.shrink(),
       data: (allTasks) {
         final dayTasks =
-            allTasks.where((t) => _isSameDay(t.date, selectedDay)).toList();
+            allTasks.where((t) => _isSameDay(t.date, selectedDay)).toList()
+              ..sort((a, b) {
+                if (a.startTime == null && b.startTime == null) {
+                  return a.createdAt.compareTo(b.createdAt);
+                }
+                if (a.startTime == null) return 1;
+                if (b.startTime == null) return -1;
+                return a.startTime!.compareTo(b.startTime!);
+              });
 
         if (dayTasks.isEmpty) {
           return Padding(

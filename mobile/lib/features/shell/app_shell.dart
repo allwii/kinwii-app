@@ -7,57 +7,130 @@ class AppShell extends StatelessWidget {
 
   final Widget child;
 
+  static const _tabs = <_NavTab>[
+    _NavTab(
+        label: 'Today',
+        icon: Icons.today_outlined,
+        selectedIcon: Icons.today,
+        route: '/today'),
+    _NavTab(
+        label: 'Week',
+        icon: Icons.view_week_outlined,
+        selectedIcon: Icons.view_week,
+        route: '/week'),
+    _NavTab(
+        label: 'Goals',
+        icon: Icons.flag_outlined,
+        selectedIcon: Icons.flag,
+        route: '/goals'),
+    _NavTab(
+        label: 'Settings',
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings,
+        route: '/settings'),
+  ];
+
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith('/today')) return 0;
-    if (location.startsWith('/week')) return 1;
-    if (location.startsWith('/goals')) return 2;
-    if (location.startsWith('/settings')) return 3;
+    for (var i = 0; i < _tabs.length; i++) {
+      if (location.startsWith(_tabs[i].route)) return i;
+    }
     return 0;
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = _currentIndex(context);
+
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex(context),
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0:
-              context.go('/today');
-            case 1:
-              context.go('/week');
-            case 2:
-              context.go('/goals');
-            case 3:
-              context.go('/settings');
-          }
-        },
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.kiwi100,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.today_outlined),
-            selectedIcon: Icon(Icons.today, color: AppColors.kiwi600),
-            label: 'Today',
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.view_week_outlined),
-            selectedIcon: Icon(Icons.view_week, color: AppColors.kiwi600),
-            label: 'Week',
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              for (var i = 0; i < _tabs.length; i++)
+                _NavItem(
+                  tab: _tabs[i],
+                  selected: i == currentIndex,
+                  onTap: () => context.go(_tabs[i].route),
+                ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.flag_outlined),
-            selectedIcon: Icon(Icons.flag, color: AppColors.kiwi600),
-            label: 'Goals',
+        ),
+      ),
+    );
+  }
+}
+
+class _NavTab {
+  const _NavTab({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    required this.route,
+  });
+
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String route;
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _NavTab tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.kiwi600 : AppColors.contentTertiary;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? tab.selectedIcon : tab.icon,
+                size: 22,
+                color: color,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                tab.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings, color: AppColors.kiwi600),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }
