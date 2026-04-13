@@ -266,11 +266,18 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     );
                     if (confirmed == true && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                                Text('Account deletion coming soon.')),
-                      );
+                      try {
+                        await ref.read(apiServiceProvider).delete('/auth/me');
+                        await ref.read(authServiceProvider).logout();
+                        if (context.mounted) context.go('/auth/login');
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Could not delete account. Try again.')),
+                          );
+                        }
+                      }
                     }
                   },
                 ),

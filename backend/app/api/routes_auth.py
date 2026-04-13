@@ -86,6 +86,16 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.delete("/me", status_code=204)
+async def delete_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete the current user and all associated data."""
+    db.delete(current_user)
+    db.commit()
+
+
 @router.put("/me", response_model=UserResponse)
 async def update_me(
     body: UserProfileUpdate,
