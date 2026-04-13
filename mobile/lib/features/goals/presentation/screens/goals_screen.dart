@@ -207,99 +207,95 @@ class _GoalCard extends StatelessWidget {
   final QuarterlyGoal goal;
   final VoidCallback onTap;
 
-  String _quarterLabel(DateTime start, DateTime end) {
-    final startQ = ((start.month - 1) ~/ 3) + 1;
-    final endQ = ((end.month - 1) ~/ 3) + 1;
-    final q = startQ == endQ ? 'Q$startQ' : 'Q$startQ–Q$endQ';
-    return '$q ${start.year}';
-  }
-
   int _weeksRemaining(DateTime end) {
     final now = DateTime.now();
     final diff = end.difference(now).inDays;
     return (diff / 7).ceil().clamp(0, 999);
   }
 
+  String _goalEmoji(String title) {
+    final t = title.toLowerCase();
+    if (t.contains('exercise') || t.contains('run') || t.contains('gym') ||
+        t.contains('health') || t.contains('fitness') || t.contains('lose') ||
+        t.contains('weight')) return '🏃';
+    if (t.contains('save') || t.contains('invest') || t.contains('debt') ||
+        t.contains('money') || t.contains('financ') || t.contains('\$')) return '💰';
+    if (t.contains('promot') || t.contains('career') || t.contains('job') ||
+        t.contains('launch') || t.contains('ship') || t.contains('work')) return '🚀';
+    if (t.contains('read') || t.contains('book') || t.contains('learn') ||
+        t.contains('course') || t.contains('study')) return '📚';
+    if (t.contains('meditat') || t.contains('sleep') || t.contains('mindful') ||
+        t.contains('stress') || t.contains('wellbeing')) return '🧘';
+    if (t.contains('write') || t.contains('creat') || t.contains('art') ||
+        t.contains('music') || t.contains('design')) return '🎨';
+    if (t.contains('family') || t.contains('friend') || t.contains('relat') ||
+        t.contains('date') || t.contains('call')) return '❤️';
+    if (t.contains('language') || t.contains('certif') || t.contains('skill')) return '🎓';
+    return '🎯';
+  }
+
   @override
   Widget build(BuildContext context) {
     final weeksLeft = _weeksRemaining(goal.endDate);
+    final emoji = _goalEmoji(goal.title);
+
     return KinwiiCard(
       onTap: onTap,
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.kiwi100,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  _quarterLabel(goal.startDate, goal.endDate),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.kiwi700,
-                        fontWeight: FontWeight.w600,
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(emoji, style: const TextStyle(fontSize: 28)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        goal.title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: AppColors.content,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
+                    ),
+                    Text(
+                      weeksLeft == 0
+                          ? 'Ended'
+                          : '$weeksLeft wk${weeksLeft == 1 ? '' : 's'} left',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.contentTertiary,
+                          ),
+                    ),
+                  ],
                 ),
-              ),
-              if (goal.roleName != null) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.energyCreative,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    goal.roleName!,
+                if (goal.why != null && goal.why!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    goal.why!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF7C3AED),
-                          fontWeight: FontWeight.w600,
+                          color: AppColors.contentSecondary,
                         ),
                   ),
+                ],
+                const SizedBox(height: 10),
+                ProgressBar(percent: goal.progressPercent),
+                const SizedBox(height: 4),
+                Text(
+                  '${goal.progressPercent}% complete',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.contentSecondary,
+                      ),
                 ),
               ],
-              const Spacer(),
-              Text(
-                weeksLeft == 0
-                    ? 'Ended'
-                    : '$weeksLeft wk${weeksLeft == 1 ? '' : 's'} left',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.contentTertiary,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            goal.title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.content,
-                ),
-          ),
-          if (goal.why != null && goal.why!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              goal.why!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.contentSecondary,
-                  ),
             ),
-          ],
-          const SizedBox(height: 12),
-          ProgressBar(percent: goal.progressPercent),
-          const SizedBox(height: 6),
-          Text(
-            '${goal.progressPercent}% complete',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
           ),
         ],
       ),

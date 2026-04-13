@@ -591,127 +591,155 @@ class _IntentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KinwiiCard(
-      color: AppColors.kiwi50,
-      child: Column(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.kiwi50,
+            AppColors.kiwi50.withValues(alpha: 0.5),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                'Weekly intent',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: AppColors.kiwi600,
-                      letterSpacing: 0.4,
-                    ),
-              ),
-              const Spacer(),
-              if (isEditing)
-                GestureDetector(
-                  onTap: onSave,
-                  child: const Icon(
-                    Icons.check,
-                    size: 20,
-                    color: AppColors.kiwi500,
-                  ),
-                ),
-            ],
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Text('🎯', style: TextStyle(fontSize: 24)),
           ),
-          const SizedBox(height: 8),
-          if (isEditing) ...[
-            TextField(
-              controller: intentController,
-              focusNode: focusNode,
-              autofocus: true,
-              maxLines: 3,
-              minLines: 1,
-              textCapitalization: TextCapitalization.sentences,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => onSave(),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.content,
-                    fontWeight: FontWeight.w500,
-                  ),
-              decoration: const InputDecoration(
-                hintText: 'What do you want to achieve this week?',
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-                isDense: true,
-              ),
-            ),
-            if (plan.quarterId != null) ...[
-              const SizedBox(height: 10),
-              GestureDetector(
-                onTap: isSuggestingIntent ? null : onSuggestIntent,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.kiwi300),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isSuggestingIntent)
-                        const SizedBox(
-                          height: 12,
-                          width: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            color: AppColors.kiwi500,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Weekly intent',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: AppColors.kiwi700,
+                            fontWeight: FontWeight.w600,
                           ),
-                        )
-                      else
-                        const Icon(
-                          Icons.auto_awesome,
-                          size: 14,
+                    ),
+                    const Spacer(),
+                    if (isEditing)
+                      GestureDetector(
+                        onTap: onSave,
+                        child: const Icon(
+                          Icons.check,
+                          size: 20,
                           color: AppColors.kiwi500,
                         ),
-                      const SizedBox(width: 5),
-                      Text(
-                        isSuggestingIntent
-                            ? 'Suggesting…'
-                            : 'Suggest intent',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.kiwi600,
-                              fontWeight: FontWeight.w500,
-                            ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-              ),
-            ],
-          ] else ...[
-            GestureDetector(
-              onTap: onEditTap,
-              child: Text(
-                plan.intent,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.content,
-                      fontWeight: FontWeight.w500,
+                const SizedBox(height: 6),
+                if (isEditing) ...[
+                  TextField(
+                    controller: intentController,
+                    focusNode: focusNode,
+                    autofocus: true,
+                    maxLines: 3,
+                    minLines: 1,
+                    textCapitalization: TextCapitalization.sentences,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => onSave(),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.content,
+                          fontWeight: FontWeight.w500,
+                          height: 1.4,
+                        ),
+                    decoration: InputDecoration(
+                      hintText: 'What do you want to achieve this week?',
+                      hintStyle:
+                          Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: AppColors.contentTertiary,
+                                fontWeight: FontWeight.w400,
+                              ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      filled: false,
+                      contentPadding: EdgeInsets.zero,
+                      isDense: true,
                     ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+                  ),
+                  if (plan.quarterId != null) ...[
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: isSuggestingIntent ? null : onSuggestIntent,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.kiwi200),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSuggestingIntent)
+                              const SizedBox(
+                                height: 12,
+                                width: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: AppColors.kiwi500,
+                                ),
+                              )
+                            else
+                              const Icon(Icons.auto_awesome,
+                                  size: 14, color: AppColors.kiwi500),
+                            const SizedBox(width: 5),
+                            Text(
+                              isSuggestingIntent
+                                  ? 'Suggesting…'
+                                  : 'Suggest intent',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.kiwi600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  GestureDetector(
+                    onTap: onEditTap,
+                    child: Text(
+                      plan.intent,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: AppColors.kiwi600,
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
+                          ),
+                    ),
+                  ),
+                  if (plan.progressPercent > 0) ...[
+                    const SizedBox(height: 10),
+                    ProgressBar(percent: plan.progressPercent),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${plan.progressPercent}% complete',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.contentSecondary,
+                          ),
+                    ),
+                  ],
+                ],
+              ],
             ),
-            if (plan.progressPercent > 0) ...[
-              const SizedBox(height: 10),
-              ProgressBar(percent: plan.progressPercent),
-              const SizedBox(height: 4),
-              Text(
-                '${plan.progressPercent}% complete',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.contentSecondary,
-                    ),
-              ),
-            ],
-          ],
+          ),
         ],
       ),
     );
@@ -726,39 +754,61 @@ class _IntentCardReadOnly extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KinwiiCard(
-      color: AppColors.kiwi50,
-      child: Column(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.kiwi50,
+            AppColors.kiwi50.withValues(alpha: 0.5),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Weekly intent',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppColors.kiwi600,
-                  letterSpacing: 0.4,
-                ),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Text('🎯', style: TextStyle(fontSize: 24)),
           ),
-          const SizedBox(height: 8),
-          Text(
-            plan.intent,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w500,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Weekly intent',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.kiwi700,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (plan.progressPercent > 0) ...[
-            const SizedBox(height: 10),
-            ProgressBar(percent: plan.progressPercent),
-            const SizedBox(height: 4),
-            Text(
-              '${plan.progressPercent}% complete',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.contentSecondary,
+                const SizedBox(height: 6),
+                Text(
+                  plan.intent,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.kiwi600,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                ),
+                if (plan.progressPercent > 0) ...[
+                  const SizedBox(height: 10),
+                  ProgressBar(percent: plan.progressPercent),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${plan.progressPercent}% complete',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.contentSecondary,
+                        ),
                   ),
+                ],
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );
