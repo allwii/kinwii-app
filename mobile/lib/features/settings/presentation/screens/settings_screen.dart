@@ -9,9 +9,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
 import '../../../../services/subscription_service.dart';
-import '../widgets/edit_name_modal.dart';
 import '../widgets/feedback_modal.dart';
-import '../widgets/password_reset_modal.dart';
 
 // Re-export for other files that import from here
 export '../providers/reminder_settings_provider.dart';
@@ -180,108 +178,16 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 10),
             _SettingsCard(
               children: [
+                _SettingsRow(
+                  icon: Icons.person_outline,
+                  label: 'Account',
+                  onTap: () => context.push('/account'),
+                ),
                 _FirstDayRow(),
                 _SettingsRow(
                   icon: Icons.notifications_outlined,
                   label: 'Notifications',
                   onTap: () => context.push('/notifications'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // --- Account ---
-            const _SectionLabel(label: 'ACCOUNT'),
-            const SizedBox(height: 10),
-            _SettingsCard(
-              children: [
-                _SettingsRow(
-                  icon: Icons.person_outline,
-                  label: 'Edit name',
-                  onTap: () {
-                    final name =
-                        profileAsync.valueOrNull?.name;
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.white,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(24)),
-                      ),
-                      builder: (_) => EditNameModal(
-                        api: ref.read(apiServiceProvider),
-                        currentName: name,
-                        onSaved: () =>
-                            ref.read(_userProfileProvider.notifier).refresh(),
-                      ),
-                    );
-                  },
-                ),
-                _SettingsRow(
-                  icon: Icons.lock_outline,
-                  label: 'Change password',
-                  onTap: () {
-                    final email = profileAsync.valueOrNull?.email;
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.white,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(24)),
-                      ),
-                      builder: (_) => PasswordResetModal(
-                        api: ref.read(apiServiceProvider),
-                        initialEmail: email,
-                      ),
-                    );
-                  },
-                ),
-                _SettingsRow(
-                  icon: Icons.delete_outline,
-                  label: 'Delete account',
-                  showChevron: false,
-                  onTap: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (dialogContext) => AlertDialog(
-                        title: const Text('Delete account?'),
-                        content: const Text(
-                            'This will permanently delete your account and all data. This cannot be undone.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () =>
-                                Navigator.of(dialogContext).pop(false),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () =>
-                                Navigator.of(dialogContext).pop(true),
-                            child: const Text('Delete',
-                                style: TextStyle(color: Colors.red)),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirmed == true && context.mounted) {
-                      try {
-                        await ref.read(apiServiceProvider).delete('/auth/me');
-                      } catch (_) {}
-                      await ref.read(authServiceProvider).logout();
-                      if (context.mounted) context.go('/onboarding');
-                    }
-                  },
-                ),
-                _SettingsRow(
-                  icon: Icons.logout,
-                  label: 'Sign out',
-                  showChevron: false,
-                  onTap: () async {
-                    await ref.read(authServiceProvider).logout();
-                    if (context.mounted) context.go('/auth/login');
-                  },
                 ),
               ],
             ),
@@ -562,19 +468,11 @@ class _SettingsRow extends StatelessWidget {
     required this.icon,
     required this.label,
     this.onTap,
-    this.trailing,
-    this.iconColor,
-    this.labelColor,
-    this.showChevron = true,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
-  final Widget? trailing;
-  final Color? iconColor;
-  final Color? labelColor;
-  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
@@ -584,20 +482,17 @@ class _SettingsRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon,
-                size: 20, color: iconColor ?? AppColors.contentSecondary),
+            Icon(icon, size: 20, color: AppColors.contentSecondary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: labelColor ?? AppColors.content,
+                      color: AppColors.content,
                     ),
               ),
             ),
-            if (trailing != null)
-              trailing!
-            else if (showChevron && onTap != null)
+            if (onTap != null)
               const Icon(Icons.chevron_right,
                   size: 20, color: AppColors.contentTertiary),
           ],

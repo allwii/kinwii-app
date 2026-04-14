@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
+from app.middleware.subscription_middleware import require_active_access
 from app.models.user import User
 from app.models.weekly_plan import WeeklyPlan
 from app.schemas.weekly_plan import WeeklyPlanCreate, WeeklyPlanResponse, WeeklyPlanUpdate
@@ -61,7 +62,7 @@ async def get_previous_week(
 async def create_week_plan(
     body: WeeklyPlanCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     existing = (
         db.query(WeeklyPlan)
@@ -103,7 +104,7 @@ async def update_week_plan(
     plan_id: UUID,
     body: WeeklyPlanUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     plan = (
         db.query(WeeklyPlan)

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
+from app.middleware.subscription_middleware import require_active_access
 from app.models.daily_intent import DailyIntent
 from app.models.user import User
 from app.schemas.daily_intent import (
@@ -37,7 +38,7 @@ async def get_daily_intent(
 async def create_daily_intent(
     body: DailyIntentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     # Check if one already exists for this date
     existing = (
@@ -66,7 +67,7 @@ async def update_daily_intent(
     intent_id: UUID,
     body: DailyIntentUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     intent = (
         db.query(DailyIntent)

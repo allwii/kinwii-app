@@ -12,6 +12,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/task_detail_sheet.dart';
+import '../../../../services/subscription_service.dart';
 import '../../../../models/quarterly_goal.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
@@ -369,6 +370,7 @@ class TodayScreen extends ConsumerWidget {
     final weeklyPlanAsync = ref.watch(_weeklyPlanProvider);
     final tasksAsync = ref.watch(_todayTasksProvider);
     final goals = ref.watch(_goalsProvider).valueOrNull ?? [];
+    final sub = ref.watch(subscriptionProvider);
     final today = DateTime.now();
     final isEvening = today.hour >= 17;
 
@@ -515,7 +517,8 @@ class TodayScreen extends ConsumerWidget {
                 },
               ),
 
-              // AI suggested focus (below tasks)
+              // AI suggested focus (below tasks) — hidden when AI trial expired
+              if (sub.hasAiAccess)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
-from app.middleware.subscription_middleware import get_user_tier
+from app.middleware.subscription_middleware import get_user_tier, require_active_access
 from app.models.goal import QuarterlyGoal
 from app.models.user import User
 from app.schemas.goal import GoalCreate, GoalResponse, GoalUpdate
@@ -41,7 +41,7 @@ async def list_goals(
 async def create_goal(
     body: GoalCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
     tier: str = Depends(get_user_tier),
 ):
     if tier != "pro":
@@ -84,7 +84,7 @@ async def update_goal(
     goal_id: UUID,
     body: GoalUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     goal = (
         db.query(QuarterlyGoal)
@@ -105,7 +105,7 @@ async def update_goal(
 async def delete_goal(
     goal_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     goal = (
         db.query(QuarterlyGoal)

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
+from app.middleware.subscription_middleware import require_active_access
 from app.models.reflection import WeeklyReflection
 from app.models.user import User
 from app.schemas.reflection import ReflectionCreate, ReflectionResponse, ReflectionUpdate
@@ -35,7 +36,7 @@ async def get_reflection(
 async def create_reflection(
     body: ReflectionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     existing = (
         db.query(WeeklyReflection)
@@ -61,7 +62,7 @@ async def update_reflection(
     reflection_id: UUID,
     body: ReflectionUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     reflection = (
         db.query(WeeklyReflection)

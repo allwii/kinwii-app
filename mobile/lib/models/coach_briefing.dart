@@ -9,7 +9,7 @@ class CoachBriefing {
   /// Empty for free-tier responses.
   final List<String> followups;
 
-  final bool isPro;
+  final bool hasAiAccess;
   final DateTime createdAt;
 
   const CoachBriefing({
@@ -18,7 +18,7 @@ class CoachBriefing {
     required this.headline,
     required this.body,
     required this.followups,
-    required this.isPro,
+    required this.hasAiAccess,
     required this.createdAt,
   });
 
@@ -30,7 +30,7 @@ class CoachBriefing {
         followups: ((json['followups'] as List<dynamic>?) ?? const [])
             .map((e) => e as String)
             .toList(),
-        isPro: json['is_pro'] as bool? ?? false,
+        hasAiAccess: json['is_pro'] as bool? ?? false,
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 }

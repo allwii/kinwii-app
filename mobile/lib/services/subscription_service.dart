@@ -6,17 +6,27 @@ import '../features/auth/presentation/screens/login_screen.dart';
 class SubscriptionStatus {
   final String tier;
   final bool isTrial;
+  final bool aiTrialExpired;
+  final bool trialExpired;
   final DateTime? trialEndDate;
   final DateTime? subscriptionExpiresAt;
 
   const SubscriptionStatus({
     required this.tier,
     required this.isTrial,
+    this.aiTrialExpired = false,
+    this.trialExpired = false,
     this.trialEndDate,
     this.subscriptionExpiresAt,
   });
 
   bool get isPro => tier == 'pro';
+
+  /// User can access AI features (Pro subscriber OR within first 3 days of trial).
+  bool get hasAiAccess => isPro || !aiTrialExpired;
+
+  /// Full trial (7 days) expired and no subscription — hard paywall.
+  bool get isHardPaywall => trialExpired && !isPro;
 
   int get trialDaysRemaining {
     if (!isTrial || trialEndDate == null) return 0;
@@ -28,6 +38,8 @@ class SubscriptionStatus {
     return SubscriptionStatus(
       tier: json['tier'] as String,
       isTrial: json['is_trial'] as bool,
+      aiTrialExpired: json['ai_trial_expired'] as bool? ?? false,
+      trialExpired: json['trial_expired'] as bool? ?? false,
       trialEndDate: json['trial_end_date'] != null
           ? DateTime.parse(json['trial_end_date'] as String)
           : null,
@@ -37,8 +49,7 @@ class SubscriptionStatus {
     );
   }
 
-  // TEMPORARILY DISABLED — change back to 'free' when paywall is ready
-  static const free = SubscriptionStatus(tier: 'pro', isTrial: false);
+  static const free = SubscriptionStatus(tier: 'free', isTrial: false);
 }
 
 /// Provider for the current subscription status.

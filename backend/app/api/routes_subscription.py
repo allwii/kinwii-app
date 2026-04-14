@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
-from app.middleware.subscription_middleware import get_user_tier
+from app.middleware.subscription_middleware import (
+    AI_TRIAL_DAYS,
+    get_user_tier,
+    has_ai_access,
+    _is_trial_expired,
+)
 from app.models.user import SubscriptionTier, User
 from app.schemas.subscription import SubscriptionStatus
 
@@ -28,9 +33,14 @@ async def get_subscription_status(
         and current_user.trial_end_date > now
         and not current_user.subscription_expires_at
     )
+    ai_trial_expired = not has_ai_access(current_user)
+    trial_expired = _is_trial_expired(current_user)
+
     return SubscriptionStatus(
         tier=tier,
         is_trial=is_trial,
+        ai_trial_expired=ai_trial_expired,
+        trial_expired=trial_expired,
         trial_end_date=current_user.trial_end_date,
         subscription_expires_at=current_user.subscription_expires_at,
     )

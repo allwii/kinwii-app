@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
+from app.middleware.subscription_middleware import require_ai_access
 from app.models.goal import QuarterlyGoal
 from app.models.reflection import WeeklyReflection
 from app.models.task import Task
@@ -33,7 +34,7 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 async def align_week(
     body: AlignWeekRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_ai_access),
     ai: AIService = Depends(get_ai_service),
 ):
     plan = (
@@ -64,7 +65,7 @@ async def align_week(
 async def summarize_reflection(
     body: SummarizeReflectionRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_ai_access),
     ai: AIService = Depends(get_ai_service),
 ):
     reflection = (
@@ -103,7 +104,7 @@ async def summarize_reflection(
 async def suggest_daily_focus(
     body: DailyFocusRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_ai_access),
     ai: AIService = Depends(get_ai_service),
 ):
     plan = (
@@ -135,7 +136,7 @@ async def suggest_daily_focus(
 async def suggest_intent(
     body: SuggestIntentRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_ai_access),
     ai: AIService = Depends(get_ai_service),
 ):
     goal = (
@@ -174,7 +175,7 @@ async def suggest_intent(
 async def suggest_daily_intent(
     body: SuggestDailyIntentRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_ai_access),
     ai: AIService = Depends(get_ai_service),
 ):
     plan = (

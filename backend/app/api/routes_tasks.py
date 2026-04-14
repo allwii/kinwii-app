@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
+from app.middleware.subscription_middleware import require_active_access
 from app.models.task import Task
 from app.models.user import User
 from app.models.weekly_plan import WeeklyPlan
@@ -39,7 +40,7 @@ async def list_tasks(
 async def create_task(
     body: TaskCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     task = Task(user_id=current_user.id, **body.model_dump())
     db.add(task)
@@ -55,7 +56,7 @@ async def update_task(
     task_id: UUID,
     body: TaskUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     task = (
         db.query(Task)
@@ -75,7 +76,7 @@ async def update_task(
 async def toggle_task_complete(
     task_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     task = (
         db.query(Task)
@@ -96,7 +97,7 @@ async def toggle_task_complete(
 async def delete_task(
     task_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     task = (
         db.query(Task)
@@ -116,7 +117,7 @@ async def delete_task(
 async def carry_forward_tasks(
     body: CarryForwardRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_active_access),
 ):
     # Verify target plan belongs to user
     target_plan = (

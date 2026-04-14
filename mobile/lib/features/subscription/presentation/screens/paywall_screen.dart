@@ -26,17 +26,23 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final sub = ref.watch(subscriptionProvider);
+    final isHardPaywall = sub.isHardPaywall;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return PopScope(
+      canPop: !isHardPaywall,
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.content),
-          onPressed: () => context.pop(),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: !isHardPaywall,
+          leading: isHardPaywall
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.content),
+                  onPressed: () => context.pop(),
+                ),
         ),
-      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
@@ -65,7 +71,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
               const _FeatureRow(label: 'Daily AI focus', free: '1x/week', pro: 'Daily'),
               const _FeatureRow(label: 'Pattern insights', free: '—', pro: 'Included'),
               const _FeatureRow(label: 'Progress analytics', free: '—', pro: 'Included'),
-              const _FeatureRow(label: 'Data export', free: '—', pro: 'JSON & CSV'),
+
               const _FeatureRow(label: 'Smart reminders', free: '—', pro: '2-3/day'),
               const SizedBox(height: 32),
 
@@ -175,17 +181,31 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 ),
               ],
 
-              const SizedBox(height: 24),
-              Center(
-                child: TextButton(
-                  onPressed: () => context.pop(),
-                  child: const Text('Continue with Free plan'),
+              if (!isHardPaywall) ...[
+                const SizedBox(height: 24),
+                Center(
+                  child: TextButton(
+                    onPressed: () => context.pop(),
+                    child: const Text('Continue with Free plan'),
+                  ),
                 ),
-              ),
+              ] else ...[
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    'Your free trial has ended. Subscribe to keep using Kinwii.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.contentSecondary,
+                        ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
+    ),
     );
   }
 }

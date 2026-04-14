@@ -6,6 +6,7 @@ import '../features/goals/presentation/screens/goal_detail_screen.dart';
 import '../features/goals/presentation/screens/goals_screen.dart';
 import '../features/mission/presentation/screens/mission_screen.dart';
 import '../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../features/settings/presentation/screens/account_screen.dart';
 import '../features/settings/presentation/screens/notification_settings_screen.dart';
 import '../features/settings/presentation/screens/privacy_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
@@ -68,6 +69,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/analytics',
         builder: (context, state) => const AnalyticsScreen(),
+      ),
+      GoRoute(
+        path: '/account',
+        builder: (context, state) => const AccountScreen(),
       ),
       GoRoute(
         path: '/notifications',

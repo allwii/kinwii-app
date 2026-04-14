@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
 import '../../../../core/widgets/task_detail_sheet.dart';
+import '../../../../services/subscription_service.dart';
 import '../../../../models/quarterly_goal.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
@@ -303,6 +304,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
         ? ref.watch(_currentWeekPlanProvider)
         : ref.watch(_previousWeekPlanProvider);
     final aiState = ref.watch(_aiSuggestionsProvider);
+    final sub = ref.watch(subscriptionProvider);
     final monday = _startOfWeek(DateTime.now()).add(Duration(days: 7 * _weekOffset));
     final sunday = monday.add(const Duration(days: 6));
 
@@ -423,7 +425,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                                 onSave: () => _saveIntent(plan),
                                 onCancel: () =>
                                     setState(() => _editingIntent = false),
-                                onSuggestIntent: () => _suggestIntent(plan),
+                                onSuggestIntent: sub.hasAiAccess ? () => _suggestIntent(plan) : null,
                               )
                             : _IntentCardReadOnly(plan: plan),
                   ),
@@ -443,7 +445,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                             ),
                       ),
                       const Spacer(),
-                      if (isCurrentWeek)
+                      if (isCurrentWeek && sub.hasAiAccess)
                         planAsync.maybeWhen(
                           data: (plan) => plan != null
                               ? GestureDetector(
@@ -603,7 +605,7 @@ class _IntentCard extends StatelessWidget {
   final VoidCallback onEditTap;
   final VoidCallback onSave;
   final VoidCallback onCancel;
-  final VoidCallback onSuggestIntent;
+  final VoidCallback? onSuggestIntent;
 
   @override
   Widget build(BuildContext context) {
