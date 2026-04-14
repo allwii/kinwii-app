@@ -87,6 +87,59 @@ class _UserProfileNotifier extends StateNotifier<AsyncValue<_UserProfile>> {
 }
 
 // ---------------------------------------------------------------------------
+// Stats provider — lightweight summary for profile badges
+// ---------------------------------------------------------------------------
+
+class _UserStats {
+  final int totalCompleted;
+  final int currentStreak; // consecutive rhythm weeks
+  final int goalCount;
+
+  const _UserStats({
+    this.totalCompleted = 0,
+    this.currentStreak = 0,
+    this.goalCount = 0,
+  });
+}
+
+final _userStatsProvider = FutureProvider.autoDispose<_UserStats>((ref) async {
+  final api = ref.read(apiServiceProvider);
+  try {
+    final resp =
+        await api.get('/analytics/progress', queryParameters: {'weeks': 12});
+    final data = resp.data as Map<String, dynamic>;
+
+    // Total completed tasks across all weeks
+    final weeks = (data['weekly_completions'] as List<dynamic>?) ?? [];
+    int totalCompleted = 0;
+    for (final w in weeks) {
+      totalCompleted += (w['completed_tasks'] as int? ?? 0);
+    }
+
+    // Current streak of consecutive rhythm weeks (from most recent back)
+    final rhythmWeeks = (data['rhythm_weeks'] as List<dynamic>?) ?? [];
+    int streak = 0;
+    for (int i = rhythmWeeks.length - 1; i >= 0; i--) {
+      if (rhythmWeeks[i]['is_rhythm_week'] == true) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    final goals = (data['goal_progress'] as List<dynamic>?) ?? [];
+
+    return _UserStats(
+      totalCompleted: totalCompleted,
+      currentStreak: streak,
+      goalCount: goals.length,
+    );
+  } catch (_) {
+    return const _UserStats();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
@@ -96,6 +149,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(_userProfileProvider);
+    final statsAsync = ref.watch(_userStatsProvider);
     final sub = ref.watch(subscriptionProvider);
 
     return Scaffold(
@@ -113,59 +167,109 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- Profile card ---
-            _SettingsCard(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppColors.kiwi100,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Icon(Icons.person,
-                            color: AppColors.kiwi600, size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: profileAsync.when(
-                          data: (profile) => Text(
-                            profile.name ?? 'Kinwii member',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.copyWith(
-                                  color: AppColors.content,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                          loading: () => Text(
-                            'Loading...',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppColors.contentTertiary),
-                          ),
-                          error: (_, __) => Text(
-                            'Kinwii member',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.copyWith(color: AppColors.content),
-                          ),
-                        ),
-                      ),
-                    ],
+            // --- Profile header: avatar + name + badges ---
+            Center(
+              child: Column(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppColors.kiwi100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.person,
+                        color: AppColors.kiwi600, size: 36),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+
+                  // Name
+                  profileAsync.when(
+                    data: (profile) => Text(
+                      profile.name ?? 'Kinwii member',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(
+                            color: AppColors.content,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    loading: () => const SizedBox(height: 24),
+                    error: (_, __) => Text(
+                      'Kinwii member',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(color: AppColors.content),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Subscription tier chip
+                  if (sub.isPro)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.kiwi400,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'PRO',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                      ),
+                    )
+                  else if (sub.isTrial)
+                    Text(
+                      '${sub.trialDaysRemaining} days left on trial',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.contentSecondary,
+                          ),
+                    ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 20),
+
+            // --- Badges row ---
+            statsAsync.when(
+              data: (stats) => Row(
+                children: [
+                  _BadgeItem(
+                    icon: Icons.check_circle_outline,
+                    value: '${stats.totalCompleted}',
+                    label: 'Completed',
+                    color: AppColors.kiwi500,
+                  ),
+                  _BadgeItem(
+                    icon: Icons.local_fire_department_outlined,
+                    value: '${stats.currentStreak}',
+                    label: 'Week streak',
+                    color: const Color(0xFFEF8C3A),
+                  ),
+                  _BadgeItem(
+                    icon: Icons.flag_outlined,
+                    value: '${stats.goalCount}',
+                    label: stats.goalCount == 1 ? 'Goal' : 'Goals',
+                    color: const Color(0xFF6B8AFF),
+                  ),
+                ],
+              ),
+              loading: () => const SizedBox(height: 72),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+
+            const SizedBox(height: 24),
 
             // --- Get Kinwii Pro banner ---
             if (!sub.isPro) ...[
@@ -321,6 +425,67 @@ class _BenefitRow extends StatelessWidget {
               ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Badge item — one stat in the profile badges row
+// ---------------------------------------------------------------------------
+
+class _BadgeItem extends StatelessWidget {
+  const _BadgeItem({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.content,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.contentSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
