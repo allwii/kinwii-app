@@ -349,16 +349,17 @@ class _ProBanner extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.kiwi400, AppColors.kiwi600],
+          colors: [AppColors.kiwi50, AppColors.kiwi100],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.kiwi200),
         boxShadow: [
           BoxShadow(
-            color: AppColors.kiwi400.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -368,34 +369,37 @@ class _ProBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     const Icon(Icons.workspace_premium,
-                        color: Colors.white, size: 24),
+                        color: AppColors.kiwi600, size: 22),
                     const SizedBox(width: 8),
-                    Text(
-                      'Get Kinwii Pro',
-                      style:
-                          Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
+                    Expanded(
+                      child: Text(
+                        'Get Kinwii Pro',
+                        style:
+                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color: AppColors.content,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
                     ),
-                    const Spacer(),
-                    Icon(Icons.arrow_forward_ios,
-                        color: Colors.white.withValues(alpha: 0.7),
-                        size: 16),
+                    Text(
+                      'Learn more',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.kiwi600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 const _BenefitRow(text: 'Plan and focus better'),
-                const SizedBox(height: 6),
                 const _BenefitRow(text: 'Access to all features'),
-                const SizedBox(height: 6),
                 const _BenefitRow(text: 'Plan smarter with AI'),
               ],
             ),
@@ -413,18 +417,20 @@ class _BenefitRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(Icons.check_circle,
-            color: Colors.white.withValues(alpha: 0.8), size: 16),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
-              ),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.check, color: AppColors.kiwi600, size: 15),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }
