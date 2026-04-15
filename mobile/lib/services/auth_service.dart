@@ -16,8 +16,13 @@ class AuthService {
   Future<void> clearToken() => _storage.delete(key: _tokenKey);
 
   Future<bool> isLoggedIn() async {
-    final token = await getToken();
-    return token != null && token.isNotEmpty;
+    try {
+      final token = await getToken();
+      return token != null && token.isNotEmpty;
+    } catch (_) {
+      // FlutterSecureStorage can fail on iOS simulator after reinstall
+      return false;
+    }
   }
 
   Future<bool> isOnboardingComplete() async {

@@ -24,26 +24,32 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/onboarding',
     redirect: (context, state) async {
-      final isLoggedIn = await authService.isLoggedIn();
-      final loc = state.matchedLocation;
-      final isAuthRoute = loc.startsWith('/auth');
-      final isOnboardingRoute = loc == '/onboarding';
+      try {
+        final isLoggedIn = await authService.isLoggedIn();
+        final loc = state.matchedLocation;
+        final isAuthRoute = loc.startsWith('/auth');
+        final isOnboardingRoute = loc == '/onboarding';
 
-      if (isLoggedIn) {
-        // Logged-in users skip auth & onboarding screens
-        if (isAuthRoute || isOnboardingRoute) {
-          final onboarded = await authService.isOnboardingComplete();
-          return onboarded ? '/today' : '/today';
+        if (isLoggedIn) {
+          // Logged-in users skip auth & onboarding screens
+          if (isAuthRoute || isOnboardingRoute) {
+            final onboarded = await authService.isOnboardingComplete();
+            return onboarded ? '/today' : '/today';
+          }
+          return null;
         }
-        return null;
+
+        // Not logged in — allow auth and onboarding routes
+        if (isAuthRoute || isOnboardingRoute) return null;
+
+        // Not logged in, trying to access app — send to onboarding or login
+        final seen = await authService.isOnboardingSeen();
+        return seen ? '/auth/login' : '/onboarding';
+      } catch (_) {
+        // Secure storage can fail on simulator after reinstall —
+        // fall back to onboarding so the user never sees a white screen.
+        return '/onboarding';
       }
-
-      // Not logged in — allow auth and onboarding routes
-      if (isAuthRoute || isOnboardingRoute) return null;
-
-      // Not logged in, trying to access app — send to onboarding or login
-      final seen = await authService.isOnboardingSeen();
-      return seen ? '/auth/login' : '/onboarding';
     },
     routes: [
       GoRoute(

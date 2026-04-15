@@ -189,7 +189,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     loading: () => const SizedBox(height: 24),
                     error: (_, __) => Text(
-                      'Kinwii member',
+                      'Me',
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
