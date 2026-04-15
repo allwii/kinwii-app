@@ -92,7 +92,7 @@ class GoalsScreen extends ConsumerWidget {
               // Header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
                   child: Row(
                     children: [
                       Expanded(

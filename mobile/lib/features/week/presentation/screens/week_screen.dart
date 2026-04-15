@@ -341,7 +341,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
               // Header — tappable to open week picker
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
                   child: Row(
                     children: [
                       IconButton(
@@ -362,8 +362,11 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                                     'Week of ${DateFormat('MMM d').format(monday)} – ${DateFormat('MMM d').format(sunday)}',
                                     style: Theme.of(context)
                                         .textTheme
-                                        .titleMedium
-                                        ?.copyWith(color: AppColors.content),
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: AppColors.content,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                   ),
                                   const SizedBox(width: 4),
                                   const Icon(Icons.calendar_today,

@@ -192,27 +192,29 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.psychology, size: 22, color: AppColors.kiwi500),
-            const SizedBox(width: 8),
-            Text(
-              'Growth coach',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: AppColors.content),
+      body: SafeArea(
+        child: Column(
+        children: [
+          // Header — matches Today/Goals style
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
+            child: Row(
+              children: [
+                const Icon(Icons.auto_awesome,
+                    size: 22, color: AppColors.kiwi500),
+                const SizedBox(width: 8),
+                Text(
+                  'AI Coach',
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineLarge
+                      ?.copyWith(color: AppColors.content),
+                ),
+              ],
             ),
-          ],
-        ),
-        centerTitle: true,
-      ),
-      body: Column(
+          ),
+          Expanded(
+            child: Column(
         children: [
           Expanded(
             child: chatState.isLoading
@@ -228,6 +230,10 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
               onSend: _send,
             ),
         ],
+      ),
+          ),
+        ],
+      ),
       ),
     );
   }
@@ -441,13 +447,13 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.psychology,
+              Icons.auto_awesome,
               size: 56,
               color: AppColors.kiwi300,
             ),
             const SizedBox(height: 16),
             Text(
-              'Your growth coach',
+              'Your AI coach',
               style: Theme.of(context)
                   .textTheme
                   .headlineMedium

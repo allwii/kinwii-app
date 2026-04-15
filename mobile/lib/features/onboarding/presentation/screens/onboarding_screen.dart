@@ -1,5 +1,12 @@
-// OnboardingScreen — 7-screen high-conversion onboarding flow.
+// OnboardingScreen — 7-screen calm, minimal onboarding flow.
 // 1. Welcome → 2. Benefits → 3. Life Areas → 4. Goal → 5. Why → 6. Pro → 7. Account
+//
+// Design principles:
+// - All screens use the light background (#F8F9F6). Green is an accent, never a backdrop.
+// - Progress bar on screens 2–7 (pages 1–6 internally).
+// - Back button on screens 2–7.
+// - Consistent 24px horizontal padding; Welcome uses 32px.
+// - ElevatedButton: kiwi400 fill, white text, 16px vertical padding, full width, r=12.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,6 +43,11 @@ const _lifeAreas = <String, (IconData, String)>{
   'wellbeing': (Icons.self_improvement, 'Well-being'),
   'learning': (Icons.school_outlined, 'Learning'),
 };
+
+// ---------------------------------------------------------------------------
+// Total steps shown in the progress indicator (screens 2–7)
+// ---------------------------------------------------------------------------
+const _kProgressSteps = 6;
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -87,6 +99,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _next() {
     if (_currentPage < 6) _goToPage(_currentPage + 1);
+  }
+
+  void _back() {
+    if (_currentPage > 0) _goToPage(_currentPage - 1);
   }
 
   Future<void> _createAccount() async {
@@ -182,60 +198,221 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: PageView(
         controller: _pageController,
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          // 1. Welcome
+          // 1. Welcome — full-bleed, no chrome
           _WelcomeScreen(
             onGetStarted: _next,
             onLogin: () => context.go('/auth/login'),
           ),
-          // 2. Benefits
-          _BenefitsScreen(onContinue: _next),
-          // 3. Life areas
-          _LifeAreasScreen(
-            selectedAreas: _selectedAreas,
-            onToggle: (area) => setState(() {
-              if (_selectedAreas.contains(area)) {
-                _selectedAreas.remove(area);
-              } else {
-                _selectedAreas.add(area);
-              }
-            }),
-            onContinue: _next,
+          // 2–7: wrapped with shared chrome (progress bar + back button)
+          _OnboardingShell(
+            currentStep: 1,
+            onBack: _back,
+            child: _BenefitsScreen(onContinue: _next),
           ),
-          // 4. Goal
-          _GoalScreen(
-            controller: _goalCtrl,
-            selectedAreas: _selectedAreas,
-            onContinue: _next,
+          _OnboardingShell(
+            currentStep: 2,
+            onBack: _back,
+            child: _LifeAreasScreen(
+              selectedAreas: _selectedAreas,
+              onToggle: (area) => setState(() {
+                if (_selectedAreas.contains(area)) {
+                  _selectedAreas.remove(area);
+                } else {
+                  _selectedAreas.add(area);
+                }
+              }),
+              onContinue: _next,
+            ),
           ),
-          // 5. Why
-          _WhyScreen(
-            controller: _whyCtrl,
-            selectedWhy: _selectedWhy,
-            onSelectWhy: (why) => setState(() => _selectedWhy = why),
-            onContinue: _next,
-            onSkip: _next,
+          _OnboardingShell(
+            currentStep: 3,
+            onBack: _back,
+            child: _GoalScreen(
+              controller: _goalCtrl,
+              selectedAreas: _selectedAreas,
+              onContinue: _next,
+            ),
           ),
-          // 6. Pro upsell
-          _ProUpsellScreen(
-            onStartTrial: _next,
-            onSkip: _next,
+          _OnboardingShell(
+            currentStep: 4,
+            onBack: _back,
+            child: _WhyScreen(
+              controller: _whyCtrl,
+              selectedWhy: _selectedWhy,
+              onSelectWhy: (why) => setState(() => _selectedWhy = why),
+              onContinue: _next,
+              onSkip: _next,
+            ),
           ),
-          // 7. Create account
-          _CreateAccountScreen(
-            emailCtrl: _emailCtrl,
-            passwordCtrl: _passwordCtrl,
-            isCreating: _isCreating,
-            isGoogleLoading: _isGoogleLoading,
-            error: _error,
-            onCreateAccount: _createAccount,
-            onGoogleSignIn: _googleSignIn,
-            onLogin: () => context.go('/auth/login'),
+          _OnboardingShell(
+            currentStep: 5,
+            onBack: _back,
+            child: _ProUpsellScreen(
+              onStartTrial: _next,
+              onSkip: _next,
+            ),
+          ),
+          _OnboardingShell(
+            currentStep: 6,
+            onBack: _back,
+            child: _CreateAccountScreen(
+              emailCtrl: _emailCtrl,
+              passwordCtrl: _passwordCtrl,
+              isCreating: _isCreating,
+              isGoogleLoading: _isGoogleLoading,
+              error: _error,
+              onCreateAccount: _createAccount,
+              onGoogleSignIn: _googleSignIn,
+              onLogin: () => context.go('/auth/login'),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared chrome for screens 2–7: SafeArea, progress bar, back button
+// ---------------------------------------------------------------------------
+
+class _OnboardingShell extends StatelessWidget {
+  const _OnboardingShell({
+    required this.currentStep,
+    required this.onBack,
+    required this.child,
+  });
+
+  /// 1-based step index within the progress indicator (1 = first step after welcome).
+  final int currentStep;
+  final VoidCallback onBack;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top chrome: back button + progress bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 12, 24, 0),
+            child: Row(
+              children: [
+                // Back button
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                  color: AppColors.contentSecondary,
+                  onPressed: onBack,
+                  tooltip: 'Back',
+                ),
+                const SizedBox(width: 4),
+                // Step progress bar
+                Expanded(
+                  child: _StepProgressBar(
+                    totalSteps: _kProgressSteps,
+                    currentStep: currentStep,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Screen content fills the remainder
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step progress bar widget
+// ---------------------------------------------------------------------------
+
+class _StepProgressBar extends StatelessWidget {
+  const _StepProgressBar({
+    required this.totalSteps,
+    required this.currentStep,
+  });
+
+  final int totalSteps;
+
+  /// 1-based. A step is "filled" if its index <= currentStep.
+  final int currentStep;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(totalSteps, (i) {
+        final filled = i < currentStep;
+        return Expanded(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            height: 3,
+            margin: EdgeInsets.only(left: i == 0 ? 0 : 4),
+            decoration: BoxDecoration(
+              color: filled ? AppColors.kiwi400 : AppColors.borderSubtle,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared full-width primary button
+// ---------------------------------------------------------------------------
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.label,
+    required this.onPressed,
+    this.isLoading = false,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.kiwi400,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.borderSubtle,
+          disabledForegroundColor: AppColors.contentTertiary,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        child: isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Text(label),
       ),
     );
   }
@@ -253,65 +430,79 @@ class _WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // Soft light gradient: kiwi50 at the top fading to the standard background.
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.kiwi400, AppColors.kiwi600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          colors: [AppColors.kiwi50, AppColors.background],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: [0.0, 0.65],
         ),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 60, 32, 40),
+          padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Spacer(flex: 2),
+
+              // Accent icon
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.kiwi100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.eco_outlined,
+                  size: 36,
+                  color: AppColors.kiwi600,
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // Hero headline
               Text(
                 'Welcome to',
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.85),
+                      color: AppColors.contentSecondary,
                       fontWeight: FontWeight.w400,
                     ),
               ),
               Text(
                 'Kinwii',
                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      color: Colors.white,
+                      color: AppColors.content,
                       fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
                     ),
               ),
               const SizedBox(height: 16),
+
               Text(
                 'Plan with clarity.\nReflect with purpose.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      height: 1.5,
+                      color: AppColors.contentSecondary,
+                      height: 1.6,
                     ),
               ),
+
               const Spacer(flex: 3),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onGetStarted,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.kiwi600,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Get Started'),
-                ),
+
+              _PrimaryButton(
+                label: 'Get Started',
+                onPressed: onGetStarted,
               ),
               const SizedBox(height: 16),
               Center(
-                child: GestureDetector(
-                  onTap: onLogin,
-                  child: Text(
-                    'Already have an account? Log in',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.7),
-                        ),
+                child: TextButton(
+                  onPressed: onLogin,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.contentSecondary,
                   ),
+                  child: const Text('Already have an account? Log in'),
                 ),
               ),
             ],
@@ -332,56 +523,50 @@ class _BenefitsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.kiwi400, AppColors.kiwi500],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
-          child: Column(
-            children: [
-              const Spacer(),
-              const _BenefitCard(
-                icon: Icons.flag_outlined,
-                title: 'Plan your goals',
-                description:
-                    'Set clear goals and break them into weekly focus areas.',
-              ),
-              const SizedBox(height: 16),
-              const _BenefitCard(
-                icon: Icons.trending_up,
-                title: 'Track your progress',
-                description:
-                    'See how you\'re doing with smart insights and analytics.',
-              ),
-              const SizedBox(height: 16),
-              const _BenefitCard(
-                icon: Icons.auto_awesome,
-                title: 'Reflect & improve',
-                description:
-                    'Weekly reviews powered by AI help you grow consistently.',
-              ),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onContinue,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.kiwi600,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Continue'),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Everything you need\nto stay on track',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
                 ),
-              ),
-            ],
           ),
-        ),
+          const SizedBox(height: 8),
+          Text(
+            'Calm, focused, and built around you.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 32),
+          const _BenefitCard(
+            icon: Icons.flag_outlined,
+            title: 'Plan your goals',
+            description:
+                'Set clear goals and break them into weekly focus areas.',
+          ),
+          const SizedBox(height: 12),
+          const _BenefitCard(
+            icon: Icons.trending_up_rounded,
+            title: 'Track your progress',
+            description:
+                'See how you\'re doing with smart insights and analytics.',
+          ),
+          const SizedBox(height: 12),
+          const _BenefitCard(
+            icon: Icons.auto_awesome_rounded,
+            title: 'Reflect & improve',
+            description:
+                'Weekly reviews powered by AI help you grow consistently.',
+          ),
+          const Spacer(),
+          _PrimaryButton(label: 'Continue', onPressed: onContinue),
+        ],
       ),
     );
   }
@@ -400,14 +585,32 @@ class _BenefitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderSubtle),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 32, color: Colors.white),
+          // Green accent icon container
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.kiwi50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 22, color: AppColors.kiwi600),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -416,7 +619,7 @@ class _BenefitCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
+                        color: AppColors.content,
                         fontWeight: FontWeight.w600,
                       ),
                 ),
@@ -424,7 +627,8 @@ class _BenefitCard extends StatelessWidget {
                 Text(
                   description,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: AppColors.contentSecondary,
+                        height: 1.5,
                       ),
                 ),
               ],
@@ -452,101 +656,101 @@ class _LifeAreasScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'What areas of life\nmatter most to you?',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.content,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Choose at least one. We\'ll personalize your experience.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.contentSecondary,
-                    ),
-              ),
-              const SizedBox(height: 28),
-              Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 2.4,
-                  children: _lifeAreas.entries.map((e) {
-                    final selected = selectedAreas.contains(e.key);
-                    return GestureDetector(
-                      onTap: () => onToggle(e.key),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: selected ? AppColors.kiwi400 : Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: selected
-                                ? AppColors.kiwi400
-                                : AppColors.borderSubtle,
-                          ),
-                          boxShadow: selected
-                              ? [
-                                  BoxShadow(
-                                    color:
-                                        AppColors.kiwi400.withValues(alpha: 0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              e.value.$1,
-                              size: 20,
-                              color: selected
-                                  ? Colors.white
-                                  : AppColors.contentSecondary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              e.value.$2,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: selected
-                                        ? Colors.white
-                                        : AppColors.content,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'What areas of life\nmatter most to you?',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
                 ),
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed:
-                      selectedAreas.isNotEmpty ? onContinue : null,
-                  child: const Text('Continue'),
-                ),
-              ),
-            ],
           ),
-        ),
+          const SizedBox(height: 8),
+          Text(
+            'Choose at least one. We\'ll personalize your experience.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 28),
+          Expanded(
+            child: GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 2.4,
+              padding: EdgeInsets.zero,
+              children: _lifeAreas.entries.map((e) {
+                final selected = selectedAreas.contains(e.key);
+                return GestureDetector(
+                  onTap: () => onToggle(e.key),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      color: selected ? AppColors.kiwi400 : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.kiwi400
+                            : AppColors.borderSubtle,
+                      ),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color:
+                                    AppColors.kiwi400.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          e.value.$1,
+                          size: 20,
+                          color: selected
+                              ? Colors.white
+                              : AppColors.contentSecondary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          e.value.$2,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: selected
+                                    ? Colors.white
+                                    : AppColors.content,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _PrimaryButton(
+            label: 'Continue',
+            onPressed: selectedAreas.isNotEmpty ? onContinue : null,
+          ),
+        ],
       ),
     );
   }
@@ -579,86 +783,83 @@ class _GoalScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Set your first goal',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.content,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap a suggestion or type your own.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.contentSecondary,
-                    ),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: controller,
-                textCapitalization: TextCapitalization.sentences,
-                maxLength: 120,
-                decoration: const InputDecoration(
-                  hintText: 'My goal is...',
-                  counterText: '',
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set your first goal',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w700,
                 ),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _suggestions.map((s) {
-                      return GestureDetector(
-                        onTap: () => controller.text = s,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border:
-                                Border.all(color: AppColors.borderSubtle),
-                          ),
-                          child: Text(
-                            s,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.content),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tap a suggestion or type your own.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
                 ),
-              ),
-              const SizedBox(height: 16),
-              ValueListenableBuilder(
-                valueListenable: controller,
-                builder: (_, value, __) {
-                  final canContinue = value.text.trim().length >= 5;
-                  return SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: canContinue ? onContinue : null,
-                      child: const Text('Continue'),
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            controller: controller,
+            textCapitalization: TextCapitalization.sentences,
+            maxLength: 120,
+            decoration: const InputDecoration(
+              hintText: 'My goal is...',
+              counterText: '',
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _suggestions.map((s) {
+                  return GestureDetector(
+                    onTap: () => controller.text = s,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderSubtle),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        s,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.content,
+                            ),
+                      ),
                     ),
                   );
-                },
+                }).toList(),
               ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 16),
+          ValueListenableBuilder(
+            valueListenable: controller,
+            builder: (_, value, __) {
+              final canContinue = value.text.trim().length >= 5;
+              return _PrimaryButton(
+                label: 'Continue',
+                onPressed: canContinue ? onContinue : null,
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -692,97 +893,86 @@ class _WhyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Why does this\ngoal matter?',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.content,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Optional — your "why" keeps you going.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.contentSecondary,
-                    ),
-              ),
-              const SizedBox(height: 24),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _whyOptions.map((w) {
-                  final isSelected = selectedWhy == w;
-                  return GestureDetector(
-                    onTap: () => onSelectWhy(isSelected ? '' : w),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color:
-                            isSelected ? AppColors.kiwi400 : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.kiwi400
-                              : AppColors.borderSubtle,
-                        ),
-                      ),
-                      child: Text(
-                        w,
-                        style:
-                            Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.content,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: controller,
-                textCapitalization: TextCapitalization.sentences,
-                maxLines: 2,
-                minLines: 1,
-                decoration: const InputDecoration(
-                  hintText: 'Or write your own...',
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Why does this\ngoal matter?',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
                 ),
-              ),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onContinue,
-                  child: const Text('Continue'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Optional — your "why" keeps you going.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
                 ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: TextButton(
-                  onPressed: onSkip,
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _whyOptions.map((w) {
+              final isSelected = selectedWhy == w;
+              return GestureDetector(
+                onTap: () => onSelectWhy(isSelected ? '' : w),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.kiwi50 : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.kiwi400
+                          : AppColors.borderSubtle,
+                      width: isSelected ? 1.5 : 1,
+                    ),
+                  ),
                   child: Text(
-                    'Skip',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.contentTertiary,
+                    w,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isSelected
+                              ? AppColors.kiwi600
+                              : AppColors.content,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                         ),
                   ),
                 ),
-              ),
-            ],
+              );
+            }).toList(),
           ),
-        ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: controller,
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: 2,
+            minLines: 1,
+            decoration: const InputDecoration(
+              hintText: 'Or write your own...',
+            ),
+          ),
+          const Spacer(),
+          _PrimaryButton(label: 'Continue', onPressed: onContinue),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.contentTertiary,
+              ),
+              child: const Text('Skip'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -799,67 +989,114 @@ class _ProUpsellScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.kiwi400, AppColors.kiwi700],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 60, 32, 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Spacer(),
-              const Icon(Icons.workspace_premium,
-                  size: 48, color: Colors.white),
-              const SizedBox(height: 20),
-              Text(
-                'Unlock the full\nexperience',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 24),
-              const _ProBenefitRow(text: 'Unlimited goals'),
-              const SizedBox(height: 12),
-              const _ProBenefitRow(text: 'AI-powered coaching & insights'),
-              const SizedBox(height: 12),
-              const _ProBenefitRow(text: 'Smart daily focus suggestions'),
-              const SizedBox(height: 12),
-              const _ProBenefitRow(text: 'Progress analytics'),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onStartTrial,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.kiwi600,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Start 7-day free trial'),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Premium badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.kiwi50,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.kiwi200),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  size: 16,
+                  color: AppColors.kiwi600,
                 ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: GestureDetector(
-                  onTap: onSkip,
-                  child: Text(
-                    'Continue with Free',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.7),
-                        ),
-                  ),
+                const SizedBox(width: 6),
+                Text(
+                  'Kinwii Pro',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.kiwi600,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: 20),
+
+          Text(
+            'Unlock the full\nexperience',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Everything you need to stay focused and grow.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 28),
+
+          // Benefits card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.borderSubtle),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Column(
+              children: [
+                _ProBenefitRow(text: 'Unlimited goals'),
+                SizedBox(height: 14),
+                _ProBenefitRow(text: 'AI-powered coaching & insights'),
+                SizedBox(height: 14),
+                _ProBenefitRow(text: 'Smart daily focus suggestions'),
+                SizedBox(height: 14),
+                _ProBenefitRow(text: 'Progress analytics'),
+              ],
+            ),
+          ),
+
+          const Spacer(),
+
+          // Trial note
+          Center(
+            child: Text(
+              'Free for 7 days, then cancel anytime.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          _PrimaryButton(
+            label: 'Start 7-day free trial',
+            onPressed: onStartTrial,
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.contentSecondary,
+              ),
+              child: const Text('Continue with Free'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -873,13 +1110,25 @@ class _ProBenefitRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(Icons.check_circle,
-            size: 20, color: Colors.white.withValues(alpha: 0.85)),
+        Container(
+          width: 24,
+          height: 24,
+          decoration: const BoxDecoration(
+            color: AppColors.kiwi50,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.check_rounded,
+            size: 14,
+            color: AppColors.kiwi600,
+          ),
+        ),
         const SizedBox(width: 12),
         Text(
           text,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.content,
+                fontWeight: FontWeight.w500,
               ),
         ),
       ],
@@ -914,119 +1163,118 @@ class _CreateAccountScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Almost there!',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create an account to save your plan.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                ),
+          ),
+          const SizedBox(height: 32),
+
+          // Google sign-in (primary social option)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: isGoogleLoading ? null : onGoogleSignIn,
+              icon: isGoogleLoading
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Image.network(
+                      'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                      height: 20,
+                      width: 20,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.g_mobiledata, size: 20),
+                    ),
+              label: const Text('Continue with Google'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                foregroundColor: AppColors.content,
+                side: const BorderSide(color: AppColors.borderSubtle),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+          Row(
             children: [
-              Text(
-                'Almost there!',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.content,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Create an account to save your plan.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.contentSecondary,
-                    ),
-              ),
-              const SizedBox(height: 32),
-
-              // Google sign-in (primary)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: isGoogleLoading ? null : onGoogleSignIn,
-                  icon: isGoogleLoading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Image.network(
-                          'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                          height: 20,
-                          width: 20,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.g_mobiledata, size: 20),
-                        ),
-                  label: const Text('Continue with Google'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
+              const Expanded(child: Divider()),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'or',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.contentTertiary,
+                      ),
                 ),
               ),
-
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  const Expanded(child: Divider()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'or',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.contentTertiary,
-                          ),
-                    ),
-                  ),
-                  const Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: passwordCtrl,
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => onCreateAccount(),
-              ),
-              if (error != null) ...[
-                const SizedBox(height: 12),
-                Text(error!,
-                    style: const TextStyle(color: Colors.red, fontSize: 13)),
-              ],
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isCreating ? null : onCreateAccount,
-                  child: isCreating
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Create account'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: TextButton(
-                  onPressed: onLogin,
-                  child: const Text('Already have an account? Log in'),
-                ),
-              ),
+              const Expanded(child: Divider()),
             ],
           ),
-        ),
+          const SizedBox(height: 20),
+
+          TextField(
+            controller: emailCtrl,
+            decoration: const InputDecoration(labelText: 'Email'),
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: passwordCtrl,
+            decoration: const InputDecoration(labelText: 'Password'),
+            obscureText: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => onCreateAccount(),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              style: const TextStyle(
+                color: Color(0xFFDC2626),
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          _PrimaryButton(
+            label: 'Create account',
+            onPressed: isCreating ? null : onCreateAccount,
+            isLoading: isCreating,
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton(
+              onPressed: onLogin,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.contentSecondary,
+              ),
+              child: const Text('Already have an account? Log in'),
+            ),
+          ),
+        ],
       ),
     );
   }

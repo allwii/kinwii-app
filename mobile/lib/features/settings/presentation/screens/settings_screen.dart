@@ -158,15 +158,6 @@ class SettingsScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
           children: [
-            Text(
-              'Settings',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineLarge
-                  ?.copyWith(color: AppColors.content),
-            ),
-            const SizedBox(height: 24),
-
             // --- Profile header: avatar + name + badges ---
             Center(
               child: Column(

@@ -26,9 +26,9 @@ class AppShell extends ConsumerWidget {
         selectedIcon: Icons.flag,
         route: '/goals'),
     _NavTab(
-        label: 'Coach',
-        icon: Icons.psychology_outlined,
-        selectedIcon: Icons.psychology,
+        label: 'AI Coach',
+        icon: Icons.auto_awesome_outlined,
+        selectedIcon: Icons.auto_awesome,
         route: '/coach'),
     _NavTab(
         label: 'Settings',
