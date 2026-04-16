@@ -21,7 +21,30 @@ class ApiService {
       },
       onError: (error, handler) async {
         if (error.response?.statusCode == 401) {
-          await _authService.clearToken();
+          // Try to re-register with device_id (anonymous user token expired)
+          final deviceId = await _authService.getDeviceId();
+          if (deviceId != null && !_isRetrying) {
+            _isRetrying = true;
+            try {
+              final resp = await Dio(BaseOptions(
+                baseUrl: ApiConstants.baseUrl,
+                headers: {'Content-Type': 'application/json'},
+              )).post('/auth/register-device', data: {
+                'device_id': deviceId,
+              });
+              final newToken = resp.data['access_token'] as String;
+              await _authService.setToken(newToken);
+
+              // Retry the original request with new token
+              error.requestOptions.headers['Authorization'] =
+                  'Bearer $newToken';
+              final retryResp = await _dio.fetch(error.requestOptions);
+              _isRetrying = false;
+              return handler.resolve(retryResp);
+            } catch (_) {
+              _isRetrying = false;
+            }
+          }
         }
         handler.next(error);
       },
@@ -30,6 +53,7 @@ class ApiService {
 
   final AuthService _authService;
   late final Dio _dio;
+  bool _isRetrying = false;
 
   Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) =>
       _dio.get(path, queryParameters: queryParameters);

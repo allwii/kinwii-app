@@ -9,7 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../models/mission.dart';
 import '../../../../models/role.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/providers.dart';
 
 // ---------------------------------------------------------------------------
 // Providers

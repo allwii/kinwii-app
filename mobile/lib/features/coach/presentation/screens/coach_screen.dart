@@ -11,7 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../models/coach_briefing.dart';
 import '../../../../models/coach_message.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/providers.dart';
 import '../../../../services/subscription_service.dart';
 
 // ---------------------------------------------------------------------------

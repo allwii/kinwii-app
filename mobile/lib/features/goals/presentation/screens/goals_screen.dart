@@ -11,7 +11,7 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
 import '../../../../models/quarterly_goal.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/providers.dart';
 import '../../../../services/subscription_service.dart';
 
 // ---------------------------------------------------------------------------

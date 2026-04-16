@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/auth/presentation/screens/login_screen.dart';
+import 'providers.dart';
 
 class NotificationPreferences {
   final bool morningFocus;

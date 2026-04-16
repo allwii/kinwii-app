@@ -14,7 +14,7 @@ import '../../../../services/subscription_service.dart';
 import '../../../../models/quarterly_goal.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/providers.dart';
 import '../../../../features/settings/presentation/screens/settings_screen.dart';
 
 // ---------------------------------------------------------------------------

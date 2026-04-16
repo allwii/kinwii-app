@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/providers.dart';
 
 // ---------------------------------------------------------------------------
 // Models

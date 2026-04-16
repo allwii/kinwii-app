@@ -14,9 +14,18 @@ class UserLogin(BaseModel):
     password: str
 
 
+class DeviceRegisterRequest(BaseModel):
+    device_id: str = Field(..., min_length=8)
+
+
+class LinkEmailRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=8)
+
+
 class UserResponse(BaseModel):
     id: UUID
-    email: str
+    email: str | None = None
     name: str | None = None
     created_at: datetime
     subscription_tier: str = "free"

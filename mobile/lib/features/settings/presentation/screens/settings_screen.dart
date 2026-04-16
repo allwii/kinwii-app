@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/providers.dart';
 import '../../../../services/subscription_service.dart';
 import '../widgets/feedback_modal.dart';
 
@@ -179,26 +179,26 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
 
                   // Name
-                  profileAsync.when(
-                    data: (profile) => Text(
-                      profile.name ?? 'Kinwii member',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(
-                            color: AppColors.content,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    loading: () => const SizedBox(height: 24),
-                    error: (_, __) => Text(
-                      'Me',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(color: AppColors.content),
-                    ),
-                  ),
+                  // profileAsync.when(
+                  //   data: (profile) => Text(
+                  //     profile.name ?? 'Kinwii member',
+                  //     style: Theme.of(context)
+                  //         .textTheme
+                  //         .titleLarge
+                  //         ?.copyWith(
+                  //           color: AppColors.content,
+                  //           fontWeight: FontWeight.w700,
+                  //         ),
+                  //   ),
+                  //   loading: () => const SizedBox(height: 24),
+                  //   error: (_, __) => Text(
+                  //     'Me',
+                  //     style: Theme.of(context)
+                  //         .textTheme
+                  //         .titleLarge
+                  //         ?.copyWith(color: AppColors.content),
+                  //   ),
+                  // ),
                   const SizedBox(height: 4),
 
                   // Subscription tier chip

@@ -66,13 +66,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
               const SizedBox(height: 32),
 
               // Feature comparison
-              const _FeatureRow(label: 'Quarterly goals', free: '1', pro: 'Unlimited'),
+              const _FeatureRow(label: 'Goals', free: '1', pro: 'Unlimited'),
               const _FeatureRow(label: 'AI Coach', free: '—', pro: 'Unlimited'),
-              const _FeatureRow(label: 'Daily AI focus', free: '1x/week', pro: 'Daily'),
+              const _FeatureRow(label: 'Daily AI focus', free: '-', pro: 'Daily'),
               const _FeatureRow(label: 'Pattern insights', free: '—', pro: 'Included'),
               const _FeatureRow(label: 'Progress analytics', free: '—', pro: 'Included'),
 
-              const _FeatureRow(label: 'Smart reminders', free: '—', pro: '2-3/day'),
+              // const _FeatureRow(label: 'Smart reminders', free: '—', pro: '2-3/day'),
               const SizedBox(height: 32),
 
               // Plan toggle

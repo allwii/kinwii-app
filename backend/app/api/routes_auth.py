@@ -18,8 +18,10 @@ from app.middleware.auth_middleware import (
 )
 from app.models.user import SubscriptionTier, User
 from app.schemas.user import (
+    DeviceRegisterRequest,
     ForgotPasswordRequest,
     GoogleSignInRequest,
+    LinkEmailRequest,
     MessageResponse,
     ResetPasswordRequest,
     TokenResponse,
@@ -45,6 +47,36 @@ _GOOGLE_CLIENT_IDS = set(
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 TRIAL_DAYS = 7
+
+
+@router.post("/register-device", response_model=TokenResponse, status_code=201)
+async def register_device(body: DeviceRegisterRequest, db: Session = Depends(get_db)):
+    """Create or retrieve an anonymous user by device_id. Idempotent."""
+    existing = db.query(User).filter(User.device_id == body.device_id).first()
+    if existing:
+        token = create_access_token(existing.id)
+        return TokenResponse(access_token=token)
+
+    now = datetime.now(timezone.utc)
+    user = User(
+        device_id=body.device_id,
+        is_anonymous=True,
+        subscription_tier=SubscriptionTier.pro,
+        trial_start_date=now,
+        trial_end_date=now + timedelta(days=TRIAL_DAYS),
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        # Race condition — another request created it
+        existing = db.query(User).filter(User.device_id == body.device_id).first()
+        if existing:
+            return TokenResponse(access_token=create_access_token(existing.id))
+        raise
+    db.refresh(user)
+    return TokenResponse(access_token=create_access_token(user.id))
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
@@ -215,3 +247,29 @@ async def google_sign_in(body: GoogleSignInRequest, db: Session = Depends(get_db
 
     token = create_access_token(user.id)
     return TokenResponse(access_token=token)
+
+
+@router.post("/link-email", response_model=UserResponse)
+async def link_email(
+    body: LinkEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Link an email + password to an anonymous account for recovery."""
+    if current_user.email is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account already has an email linked.",
+        )
+    existing = db.query(User).filter(User.email == body.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already in use.",
+        )
+    current_user.email = body.email
+    current_user.hashed_password = hash_password(body.password)
+    current_user.is_anonymous = False
+    db.commit()
+    db.refresh(current_user)
+    return current_user

@@ -14,8 +14,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
-import '../../../../services/google_auth_service.dart';
+import '../../../../services/providers.dart';
 import '../../../../services/subscription_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +46,7 @@ const _lifeAreas = <String, (IconData, String)>{
 // ---------------------------------------------------------------------------
 // Total steps shown in the progress indicator (screens 2–7)
 // ---------------------------------------------------------------------------
-const _kProgressSteps = 6;
+const _kProgressSteps = 5;
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -69,10 +68,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _goalCtrl = TextEditingController();
   String _selectedWhy = '';
   final _whyCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
   bool _isCreating = false;
-  bool _isGoogleLoading = false;
   String? _error;
 
   @override
@@ -80,8 +76,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _pageController.dispose();
     _goalCtrl.dispose();
     _whyCtrl.dispose();
-    _emailCtrl.dispose();
-    _passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -98,32 +92,32 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _next() {
-    if (_currentPage < 6) _goToPage(_currentPage + 1);
+    if (_currentPage < 5) _goToPage(_currentPage + 1);
   }
 
   void _back() {
     if (_currentPage > 0) _goToPage(_currentPage - 1);
   }
 
-  Future<void> _createAccount() async {
-    if (_passwordCtrl.text.length < 8) {
-      setState(() => _error = 'Password must be at least 8 characters');
-      return;
-    }
+  Future<void> _finishOnboarding() async {
     setState(() {
       _isCreating = true;
       _error = null;
     });
     try {
-      final api = ref.read(apiServiceProvider);
       final auth = ref.read(authServiceProvider);
+      final api = ref.read(apiServiceProvider);
 
-      final response = await api.post('/auth/register', data: {
-        'email': _emailCtrl.text.trim(),
-        'password': _passwordCtrl.text,
+      // Silently create anonymous account
+      final deviceId = await auth.getOrCreateDeviceId();
+      final response = await api.post('/auth/register-device', data: {
+        'device_id': deviceId,
       });
       await auth.setToken(response.data['access_token']);
+
+      // Submit onboarding goal data
       await _submitGoalData(api);
+
       await auth.setOnboardingComplete();
       await auth.setOnboardingSeen();
       await ref.read(subscriptionProvider.notifier).refresh();
@@ -132,32 +126,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       if (mounted) {
         setState(() {
           _isCreating = false;
-          _error = 'Registration failed. Email may already be in use.';
-        });
-      }
-    }
-  }
-
-  Future<void> _googleSignIn() async {
-    setState(() {
-      _isGoogleLoading = true;
-      _error = null;
-    });
-    try {
-      final api = ref.read(apiServiceProvider);
-      final auth = ref.read(authServiceProvider);
-      final googleAuth = GoogleAuthService(api, auth);
-      await googleAuth.signIn();
-      await _submitGoalData(api);
-      await auth.setOnboardingComplete();
-      await auth.setOnboardingSeen();
-      await ref.read(subscriptionProvider.notifier).refresh();
-      if (mounted) context.go('/today');
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _isGoogleLoading = false;
-          _error = 'Google sign-in failed. Please try again.';
+          _error = 'Something went wrong. Please try again.';
         });
       }
     }
@@ -206,7 +175,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           // 1. Welcome — full-bleed, no chrome
           _WelcomeScreen(
             onGetStarted: _next,
-            onLogin: () => context.go('/auth/login'),
           ),
           // 2–7: wrapped with shared chrome (progress bar + back button)
           _OnboardingShell(
@@ -253,22 +221,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             currentStep: 5,
             onBack: _back,
             child: _ProUpsellScreen(
-              onStartTrial: _next,
-              onSkip: _next,
-            ),
-          ),
-          _OnboardingShell(
-            currentStep: 6,
-            onBack: _back,
-            child: _CreateAccountScreen(
-              emailCtrl: _emailCtrl,
-              passwordCtrl: _passwordCtrl,
-              isCreating: _isCreating,
-              isGoogleLoading: _isGoogleLoading,
+              onStartTrial: _finishOnboarding,
+              onSkip: _finishOnboarding,
+              isLoading: _isCreating,
               error: _error,
-              onCreateAccount: _createAccount,
-              onGoogleSignIn: _googleSignIn,
-              onLogin: () => context.go('/auth/login'),
             ),
           ),
         ],
@@ -423,9 +379,8 @@ class _PrimaryButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _WelcomeScreen extends StatelessWidget {
-  const _WelcomeScreen({required this.onGetStarted, required this.onLogin});
+  const _WelcomeScreen({required this.onGetStarted});
   final VoidCallback onGetStarted;
-  final VoidCallback onLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -494,16 +449,6 @@ class _WelcomeScreen extends StatelessWidget {
               _PrimaryButton(
                 label: 'Get Started',
                 onPressed: onGetStarted,
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: TextButton(
-                  onPressed: onLogin,
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.contentSecondary,
-                  ),
-                  child: const Text('Already have an account? Log in'),
-                ),
               ),
             ],
           ),
@@ -983,9 +928,16 @@ class _WhyScreen extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ProUpsellScreen extends StatelessWidget {
-  const _ProUpsellScreen({required this.onStartTrial, required this.onSkip});
+  const _ProUpsellScreen({
+    required this.onStartTrial,
+    required this.onSkip,
+    this.isLoading = false,
+    this.error,
+  });
   final VoidCallback onStartTrial;
   final VoidCallback onSkip;
+  final bool isLoading;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -1082,14 +1034,24 @@ class _ProUpsellScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
+          if (error != null) ...[
+            Center(
+              child: Text(
+                error!,
+                style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           _PrimaryButton(
             label: 'Start 7-day free trial',
             onPressed: onStartTrial,
+            isLoading: isLoading,
           ),
           const SizedBox(height: 8),
           Center(
             child: TextButton(
-              onPressed: onSkip,
+              onPressed: isLoading ? null : onSkip,
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.contentSecondary,
               ),
@@ -1136,146 +1098,3 @@ class _ProBenefitRow extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Screen 7: Create Account
-// ---------------------------------------------------------------------------
-
-class _CreateAccountScreen extends StatelessWidget {
-  const _CreateAccountScreen({
-    required this.emailCtrl,
-    required this.passwordCtrl,
-    required this.isCreating,
-    required this.isGoogleLoading,
-    this.error,
-    required this.onCreateAccount,
-    required this.onGoogleSignIn,
-    required this.onLogin,
-  });
-
-  final TextEditingController emailCtrl;
-  final TextEditingController passwordCtrl;
-  final bool isCreating;
-  final bool isGoogleLoading;
-  final String? error;
-  final VoidCallback onCreateAccount;
-  final VoidCallback onGoogleSignIn;
-  final VoidCallback onLogin;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Almost there!',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create an account to save your plan.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
-          ),
-          const SizedBox(height: 32),
-
-          // Google sign-in (primary social option)
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: isGoogleLoading ? null : onGoogleSignIn,
-              icon: isGoogleLoading
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Image.network(
-                      'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                      height: 20,
-                      width: 20,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.g_mobiledata, size: 20),
-                    ),
-              label: const Text('Continue with Google'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                foregroundColor: AppColors.content,
-                side: const BorderSide(color: AppColors.borderSubtle),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              const Expanded(child: Divider()),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'or',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.contentTertiary,
-                      ),
-                ),
-              ),
-              const Expanded(child: Divider()),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          TextField(
-            controller: emailCtrl,
-            decoration: const InputDecoration(labelText: 'Email'),
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: passwordCtrl,
-            decoration: const InputDecoration(labelText: 'Password'),
-            obscureText: true,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => onCreateAccount(),
-          ),
-          if (error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              error!,
-              style: const TextStyle(
-                color: Color(0xFFDC2626),
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-          ],
-          const SizedBox(height: 24),
-          _PrimaryButton(
-            label: 'Create account',
-            onPressed: isCreating ? null : onCreateAccount,
-            isLoading: isCreating,
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: TextButton(
-              onPressed: onLogin,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.contentSecondary,
-              ),
-              child: const Text('Already have an account? Log in'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

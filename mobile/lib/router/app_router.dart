@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../features/auth/presentation/screens/login_screen.dart';
-import '../features/auth/presentation/screens/register_screen.dart';
+import '../services/providers.dart';
 import '../features/goals/presentation/screens/goal_detail_screen.dart';
 import '../features/goals/presentation/screens/goals_screen.dart';
 import '../features/mission/presentation/screens/mission_screen.dart';
@@ -27,39 +26,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       try {
         final isLoggedIn = await authService.isLoggedIn();
         final loc = state.matchedLocation;
-        final isAuthRoute = loc.startsWith('/auth');
         final isOnboardingRoute = loc == '/onboarding';
+        final isPaywallRoute = loc == '/pro';
 
-        if (isLoggedIn) {
-          // Logged-in users skip auth & onboarding screens
-          if (isAuthRoute || isOnboardingRoute) {
-            final onboarded = await authService.isOnboardingComplete();
-            return onboarded ? '/today' : '/today';
-          }
-          return null;
+        if (!isLoggedIn) {
+          // No token — send to onboarding (which will auto-register)
+          if (isOnboardingRoute || isPaywallRoute) return null;
+          return '/onboarding';
         }
 
-        // Not logged in — allow auth and onboarding routes
-        if (isAuthRoute || isOnboardingRoute) return null;
+        // Logged in — skip onboarding
+        if (isOnboardingRoute) {
+          final onboarded = await authService.isOnboardingComplete();
+          return onboarded ? '/today' : null;
+        }
 
-        // Not logged in, trying to access app — send to onboarding or login
-        final seen = await authService.isOnboardingSeen();
-        return seen ? '/auth/login' : '/onboarding';
+        return null;
       } catch (_) {
-        // Secure storage can fail on simulator after reinstall —
-        // fall back to onboarding so the user never sees a white screen.
         return '/onboarding';
       }
     },
     routes: [
-      GoRoute(
-        path: '/auth/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/auth/register',
-        builder: (context, state) => const RegisterScreen(),
-      ),
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),

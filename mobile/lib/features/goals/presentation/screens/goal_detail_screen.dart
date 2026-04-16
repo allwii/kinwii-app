@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/progress_bar.dart';
 import '../../../../models/quarterly_goal.dart';
-import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../services/providers.dart';
 
 // ---------------------------------------------------------------------------
 // Provider
