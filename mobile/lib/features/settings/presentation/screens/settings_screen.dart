@@ -48,11 +48,13 @@ class _UserProfile {
   final String? email;
   final String? name;
   final String subscriptionTier;
+  final bool autoMoveTasks;
 
   const _UserProfile({
     this.email,
     this.name,
     this.subscriptionTier = 'free',
+    this.autoMoveTasks = false,
   });
 }
 
@@ -77,6 +79,7 @@ class _UserProfileNotifier extends StateNotifier<AsyncValue<_UserProfile>> {
         email: data['email'] as String?,
         name: data['name'] as String?,
         subscriptionTier: data['subscription_tier'] as String? ?? 'free',
+        autoMoveTasks: data['auto_move_tasks'] as bool? ?? false,
       ));
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -277,6 +280,14 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.person_outline,
                   label: 'Account',
                   onTap: () => context.push('/account'),
+                ),
+                _AutoMoveRow(
+                  isEnabled: profileAsync.valueOrNull?.autoMoveTasks ?? false,
+                  onChanged: (value) async {
+                    final api = ref.read(apiServiceProvider);
+                    await api.put('/auth/me', data: {'auto_move_tasks': value});
+                    ref.read(_userProfileProvider.notifier).refresh();
+                  },
                 ),
                 _FirstDayRow(),
                 _SettingsRow(
@@ -616,6 +627,58 @@ class _FirstDayRow extends ConsumerWidget {
                 size: 16, color: AppColors.contentTertiary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-move unfinished tasks row
+// ---------------------------------------------------------------------------
+
+class _AutoMoveRow extends StatelessWidget {
+  const _AutoMoveRow({
+    required this.isEnabled,
+    required this.onChanged,
+  });
+
+  final bool isEnabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.redo_rounded,
+              size: 20, color: AppColors.contentSecondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Auto-move unfinished tasks',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.content,
+                      ),
+                ),
+                Text(
+                  'Move unfinished tasks to next day',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.contentTertiary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: isEnabled,
+            onChanged: onChanged,
+            activeTrackColor: AppColors.kiwi400,
+          ),
+        ],
       ),
     );
   }

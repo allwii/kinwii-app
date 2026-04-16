@@ -22,12 +22,14 @@ class UserResponse(BaseModel):
     subscription_tier: str = "free"
     trial_end_date: datetime | None = None
     subscription_expires_at: datetime | None = None
+    auto_move_tasks: bool = False
 
     model_config = {"from_attributes": True}
 
 
 class UserProfileUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
+    auto_move_tasks: bool | None = None
 
 
 class TokenResponse(BaseModel):

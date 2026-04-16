@@ -97,6 +97,15 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
 
     try {
       final api = _ref.read(apiServiceProvider);
+
+      // Auto-move yesterday's unfinished tasks (server checks the setting).
+      // Fire-and-forget before loading today's list so moved tasks appear.
+      try {
+        await api.post('/tasks/auto-move');
+      } catch (_) {
+        // Non-critical — if it fails, today's tasks still load normally.
+      }
+
       final response =
           await api.get('/tasks', queryParameters: {'date': dateStr});
       await cache.put(cacheKey, response.data, ttlMinutes: 10);

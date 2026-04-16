@@ -43,6 +43,11 @@ class User(Base):
         "notify_midweek_progress", Boolean, nullable=False, server_default="true"
     )
 
+    # Task preferences
+    auto_move_tasks = Column(
+        "auto_move_tasks", Boolean, nullable=False, server_default="true"
+    )
+
     # Password reset
     reset_code = Column(String, nullable=True)
     reset_code_expires_at = Column(DateTime(timezone=True), nullable=True)

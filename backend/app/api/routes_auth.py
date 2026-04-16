@@ -106,6 +106,8 @@ async def update_me(
 ):
     if body.name is not None:
         current_user.name = body.name
+    if body.auto_move_tasks is not None:
+        current_user.auto_move_tasks = body.auto_move_tasks
     db.commit()
     db.refresh(current_user)
     return current_user

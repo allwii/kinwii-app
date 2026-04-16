@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -159,3 +159,45 @@ async def carry_forward_tasks(
     update_week_progress(body.target_weekly_plan_id, db)
     db.commit()
     return new_tasks
+
+
+@router.post("/auto-move", response_model=list[TaskResponse])
+async def auto_move_tasks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Move yesterday's unfinished tasks to today.
+
+    Called by the mobile app on launch when the user has auto_move_tasks
+    enabled. Only moves tasks that are incomplete and have no skip_reason
+    (skipped tasks are intentionally left behind). Idempotent — safe to
+    call multiple times per day since it only looks at yesterday's tasks.
+    """
+    if not current_user.auto_move_tasks:
+        return []
+
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+
+    unfinished = (
+        db.query(Task)
+        .filter(
+            Task.user_id == current_user.id,
+            Task.date == yesterday,
+            Task.completed.is_(False),
+            Task.skip_reason.is_(None),
+        )
+        .all()
+    )
+
+    if not unfinished:
+        return []
+
+    for task in unfinished:
+        task.date = today
+    db.commit()
+
+    for task in unfinished:
+        db.refresh(task)
+
+    return unfinished
