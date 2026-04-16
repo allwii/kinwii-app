@@ -15,6 +15,7 @@ import '../../../../models/quarterly_goal.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../features/auth/presentation/screens/login_screen.dart';
+import '../../../../features/settings/presentation/screens/settings_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -130,14 +131,28 @@ final _weekReflectionExistsProvider =
 // Helpers
 // ---------------------------------------------------------------------------
 
-DateTime _startOfWeek(DateTime date) {
-  // Monday-based week
-  final weekday = date.weekday; // 1=Mon ... 7=Sun
-  return DateTime(date.year, date.month, date.day - (weekday - 1));
+/// Returns the Dart weekday (1=Mon..7=Sun) for the user's first-day-of-week
+/// setting string ('Monday', 'Sunday', 'Saturday').
+int _firstDayNumber(String setting) {
+  switch (setting) {
+    case 'Sunday':
+      return DateTime.sunday; // 7
+    case 'Saturday':
+      return DateTime.saturday; // 6
+    default:
+      return DateTime.monday; // 1
+  }
 }
 
-List<DateTime> _weekDays(DateTime monday) =>
-    List.generate(7, (i) => monday.add(Duration(days: i)));
+/// Returns the start of the week containing [date], where the week begins on
+/// the day indicated by [firstDay] (1=Mon..7=Sun).
+DateTime _startOfWeek(DateTime date, {int firstDay = DateTime.monday}) {
+  int diff = (date.weekday - firstDay) % 7;
+  return DateTime(date.year, date.month, date.day - diff);
+}
+
+List<DateTime> _weekDays(DateTime start) =>
+    List.generate(7, (i) => start.add(Duration(days: i)));
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -177,9 +192,10 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
   }
 
   void _jumpToWeekOf(DateTime date) {
-    final currentMonday = _startOfWeek(DateTime.now());
-    final targetMonday = _startOfWeek(date);
-    final diff = targetMonday.difference(currentMonday).inDays ~/ 7;
+    final fd = _firstDayNumber(ref.read(firstDayOfWeekProvider));
+    final currentStart = _startOfWeek(DateTime.now(), firstDay: fd);
+    final targetStart = _startOfWeek(date, firstDay: fd);
+    final diff = targetStart.difference(currentStart).inDays ~/ 7;
     setState(() {
       _weekOffset = diff;
       _selectedDay = date;
@@ -305,8 +321,10 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
         : ref.watch(_previousWeekPlanProvider);
     final aiState = ref.watch(_aiSuggestionsProvider);
     final sub = ref.watch(subscriptionProvider);
-    final monday = _startOfWeek(DateTime.now()).add(Duration(days: 7 * _weekOffset));
-    final sunday = monday.add(const Duration(days: 6));
+    final firstDaySetting = ref.watch(firstDayOfWeekProvider);
+    final firstDay = _firstDayNumber(firstDaySetting);
+    final weekStart = _startOfWeek(DateTime.now(), firstDay: firstDay)
+        .add(Duration(days: 7 * _weekOffset));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -359,7 +377,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Week of ${DateFormat('MMM d').format(monday)} – ${DateFormat('MMM d').format(sunday)}',
+                                    'Week of ${DateFormat('MMM d').format(weekStart)}',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleLarge
@@ -377,7 +395,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                               Text(
                                 isCurrentWeek
                                     ? 'Current week'
-                                    : DateFormat('yyyy').format(monday),
+                                    : DateFormat('yyyy').format(weekStart),
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
@@ -533,7 +551,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                   child: planAsync.maybeWhen(
                     data: (plan) => plan == null
                         ? _DaySelector(
-                            days: _weekDays(monday),
+                            days: _weekDays(weekStart),
                             tasks: const [],
                             selectedDay: _selectedDay,
                             onDayTap: (day) =>
@@ -541,13 +559,13 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                           )
                         : _WeekDaySelectorLoader(
                             plan: plan,
-                            days: _weekDays(monday),
+                            days: _weekDays(weekStart),
                             selectedDay: _selectedDay,
                             onDayTap: (day) =>
                                 setState(() => _selectedDay = day),
                           ),
                     orElse: () => _DaySelector(
-                      days: _weekDays(monday),
+                      days: _weekDays(weekStart),
                       tasks: const [],
                       selectedDay: _selectedDay,
                       onDayTap: (day) => setState(() => _selectedDay = day),
@@ -919,7 +937,15 @@ class _DaySelector extends StatelessWidget {
   final DateTime selectedDay;
   final void Function(DateTime) onDayTap;
 
-  static const _dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  static const _allDayLabels = {
+    DateTime.monday: 'M',
+    DateTime.tuesday: 'T',
+    DateTime.wednesday: 'W',
+    DateTime.thursday: 'T',
+    DateTime.friday: 'F',
+    DateTime.saturday: 'S',
+    DateTime.sunday: 'S',
+  };
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
@@ -955,7 +981,7 @@ class _DaySelector extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    _dayLabels[i],
+                    _allDayLabels[day.weekday] ?? '',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: isSelected
                               ? Colors.white
@@ -1346,11 +1372,11 @@ class _CreateWeekSheetState extends ConsumerState<_CreateWeekSheet> {
     try {
       final api = ref.read(apiServiceProvider);
       final now = DateTime.now();
-      final weekday = now.weekday;
-      final monday = DateTime(now.year, now.month, now.day - (weekday - 1));
+      final fd = _firstDayNumber(ref.read(firstDayOfWeekProvider));
+      final start = _startOfWeek(now, firstDay: fd);
 
       await api.post('/week', data: {
-        'week_start_date': DateFormat('yyyy-MM-dd').format(monday),
+        'week_start_date': DateFormat('yyyy-MM-dd').format(start),
         'intent': intent,
       });
 
