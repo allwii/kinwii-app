@@ -175,6 +175,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           // 1. Welcome — full-bleed, no chrome
           _WelcomeScreen(
             onGetStarted: _next,
+            onRecover: () => context.push('/sign-in'),
           ),
           // 2–7: wrapped with shared chrome (progress bar + back button)
           _OnboardingShell(
@@ -379,8 +380,9 @@ class _PrimaryButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _WelcomeScreen extends StatelessWidget {
-  const _WelcomeScreen({required this.onGetStarted});
+  const _WelcomeScreen({required this.onGetStarted, required this.onRecover});
   final VoidCallback onGetStarted;
+  final VoidCallback onRecover;
 
   @override
   Widget build(BuildContext context) {
@@ -430,7 +432,6 @@ class _WelcomeScreen extends StatelessWidget {
                 'Kinwii',
                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
                       color: AppColors.content,
-                      fontWeight: FontWeight.w800,
                       letterSpacing: -1,
                     ),
               ),
@@ -449,6 +450,16 @@ class _WelcomeScreen extends StatelessWidget {
               _PrimaryButton(
                 label: 'Get Started',
                 onPressed: onGetStarted,
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: TextButton(
+                  onPressed: onRecover,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.contentSecondary,
+                  ),
+                  child: const Text('I have an account'),
+                ),
               ),
             ],
           ),

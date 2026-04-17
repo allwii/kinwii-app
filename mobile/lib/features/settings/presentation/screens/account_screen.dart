@@ -78,41 +78,54 @@ class AccountScreen extends ConsumerWidget {
           // Account actions
           _AccountCard(
             children: [
-              _AccountRow(
-                icon: Icons.person_outline,
-                label: 'Edit name',
-                onTap: () {
-                  final name = profileAsync.valueOrNull?.name;
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.white,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(24)),
-                    ),
-                    builder: (_) => EditNameModal(
-                      api: ref.read(apiServiceProvider),
-                      currentName: name,
-                      onSaved: () => ref.invalidate(_accountProfileProvider),
-                    ),
-                  );
-                },
-              ),
-              if (!hasEmail)
+              if (hasEmail)
                 _AccountRow(
-                  icon: Icons.email_outlined,
-                  label: 'Link email for backup',
-                  onTap: () => _showLinkEmailSheet(context, ref),
+                  icon: Icons.person_outline,
+                  label: 'Edit name',
+                  onTap: () {
+                    final name = profileAsync.valueOrNull?.name;
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(24)),
+                      ),
+                      builder: (_) => EditNameModal(
+                        api: ref.read(apiServiceProvider),
+                        currentName: name,
+                        onSaved: () => ref.invalidate(_accountProfileProvider),
+                      ),
+                    );
+                  },
+                )
+              else
+                _AccountRow(
+                  icon: Icons.person_add_outlined,
+                  label: 'Create account',
+                  onTap: () => context.push('/sign-in').then((_) {
+                    ref.invalidate(_accountProfileProvider);
+                  }),
                 ),
             ],
           ),
 
           const SizedBox(height: 24),
 
-          // Danger zone
+          // Log out + delete
           _AccountCard(
             children: [
+              if (hasEmail)
+                _AccountRow(
+                  icon: Icons.logout,
+                  label: 'Log out',
+                  showChevron: false,
+                  onTap: () async {
+                    await ref.read(authServiceProvider).logout();
+                    if (context.mounted) context.go('/onboarding');
+                  },
+                ),
               _AccountRow(
                 icon: Icons.delete_outline,
                 label: 'Delete all data',
@@ -158,151 +171,6 @@ class AccountScreen extends ConsumerWidget {
     );
   }
 
-  void _showLinkEmailSheet(BuildContext context, WidgetRef ref) {
-    final emailCtrl = TextEditingController();
-    final passwordCtrl = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => _LinkEmailSheet(
-        emailCtrl: emailCtrl,
-        passwordCtrl: passwordCtrl,
-        api: ref.read(apiServiceProvider),
-        onLinked: () => ref.invalidate(_accountProfileProvider),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Link email sheet
-// ---------------------------------------------------------------------------
-
-class _LinkEmailSheet extends StatefulWidget {
-  const _LinkEmailSheet({
-    required this.emailCtrl,
-    required this.passwordCtrl,
-    required this.api,
-    required this.onLinked,
-  });
-
-  final TextEditingController emailCtrl;
-  final TextEditingController passwordCtrl;
-  final dynamic api;
-  final VoidCallback onLinked;
-
-  @override
-  State<_LinkEmailSheet> createState() => _LinkEmailSheetState();
-}
-
-class _LinkEmailSheetState extends State<_LinkEmailSheet> {
-  bool _loading = false;
-  String? _error;
-
-  Future<void> _submit() async {
-    final email = widget.emailCtrl.text.trim();
-    final password = widget.passwordCtrl.text;
-    if (email.isEmpty || password.length < 8) {
-      setState(
-          () => _error = 'Please enter a valid email and password (8+ chars).');
-      return;
-    }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      await widget.api.post('/auth/link-email', data: {
-        'email': email,
-        'password': password,
-      });
-      widget.onLinked();
-      if (mounted) Navigator.of(context).pop();
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = 'Could not link email. It may already be in use.';
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.emailCtrl.dispose();
-    widget.passwordCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomPadding),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Link email',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Add an email and password so you can recover your data if you switch devices.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: widget.emailCtrl,
-            decoration: const InputDecoration(labelText: 'Email'),
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: widget.passwordCtrl,
-            decoration: const InputDecoration(labelText: 'Password'),
-            obscureText: true,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _submit(),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(_error!,
-                style:
-                    const TextStyle(color: Color(0xFFDC2626), fontSize: 13)),
-          ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Link email'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------

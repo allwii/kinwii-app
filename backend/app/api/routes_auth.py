@@ -49,6 +49,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 TRIAL_DAYS = 7
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 @router.post("/register-device", response_model=TokenResponse, status_code=201)
 async def register_device(body: DeviceRegisterRequest, db: Session = Depends(get_db)):
     """Create or retrieve an anonymous user by device_id. Idempotent."""
@@ -81,7 +85,8 @@ async def register_device(body: DeviceRegisterRequest, db: Session = Depends(get
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(body: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == body.email).first()
+    email = _normalize_email(body.email)
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -89,7 +94,7 @@ async def register(body: UserCreate, db: Session = Depends(get_db)):
         )
     now = datetime.now(timezone.utc)
     user = User(
-        email=body.email,
+        email=email,
         hashed_password=hash_password(body.password),
         subscription_tier=SubscriptionTier.pro,
         trial_start_date=now,
@@ -104,7 +109,7 @@ async def register(body: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(body: UserCreate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(User.email == _normalize_email(body.email)).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -152,7 +157,7 @@ RESET_CODE_EXPIRY_MINUTES = 10
 async def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """Send a 6-digit reset code to the user's email via Resend."""
     msg = "If that email is registered, a reset code has been sent."
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(User.email == _normalize_email(body.email)).first()
     if not user:
         # Don't reveal whether email exists
         return MessageResponse(message=msg)
@@ -173,7 +178,7 @@ async def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get
 async def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Verify the 6-digit code and set a new password."""
     error_msg = "Invalid or expired reset code."
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(User.email == _normalize_email(body.email)).first()
     if not user or not user.reset_code or not user.reset_code_expires_at:
         raise HTTPException(status_code=400, detail=error_msg)
 
@@ -224,9 +229,10 @@ async def google_sign_in(body: GoogleSignInRequest, db: Session = Depends(get_db
         logger.warning("Google token verification failed: %s", e)
         raise HTTPException(status_code=401, detail="Invalid Google token.")
 
-    email = id_info.get("email")
-    if not email:
+    raw_email = id_info.get("email")
+    if not raw_email:
         raise HTTPException(status_code=400, detail="Google account has no email.")
+    email = _normalize_email(raw_email)
 
     # Find or create user
     user = db.query(User).filter(User.email == email).first()
@@ -261,15 +267,18 @@ async def link_email(
             status_code=status.HTTP_409_CONFLICT,
             detail="Account already has an email linked.",
         )
-    existing = db.query(User).filter(User.email == body.email).first()
+    email = _normalize_email(body.email)
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already in use.",
         )
-    current_user.email = body.email
+    current_user.email = email
     current_user.hashed_password = hash_password(body.password)
     current_user.is_anonymous = False
+    if body.name is not None:
+        current_user.name = body.name
     db.commit()
     db.refresh(current_user)
     return current_user

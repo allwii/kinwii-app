@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../services/providers.dart';
+import '../core/widgets/recover_account_sheet.dart';
 import '../features/goals/presentation/screens/goal_detail_screen.dart';
 import '../features/goals/presentation/screens/goals_screen.dart';
 import '../features/mission/presentation/screens/mission_screen.dart';
@@ -28,10 +29,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         final loc = state.matchedLocation;
         final isOnboardingRoute = loc == '/onboarding';
         final isPaywallRoute = loc == '/pro';
+        final isSignInRoute = loc == '/sign-in';
 
         if (!isLoggedIn) {
           // No token — send to onboarding (which will auto-register)
-          if (isOnboardingRoute || isPaywallRoute) return null;
+          if (isOnboardingRoute || isPaywallRoute || isSignInRoute) return null;
           return '/onboarding';
         }
 
@@ -50,6 +52,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/sign-in',
+        builder: (context, state) => const SignInScreen(),
       ),
       GoRoute(
         path: '/mission',

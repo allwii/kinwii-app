@@ -21,6 +21,7 @@ class DeviceRegisterRequest(BaseModel):
 class LinkEmailRequest(BaseModel):
     email: str = Field(..., min_length=3)
     password: str = Field(..., min_length=8)
+    name: str | None = Field(None, min_length=1, max_length=100)
 
 
 class UserResponse(BaseModel):

@@ -140,16 +140,16 @@ class _GoalDetailViewState extends ConsumerState<_GoalDetailView> {
   Future<void> _delete() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete goal?'),
         content: const Text('This will also remove all linked weekly plans and tasks.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child:
                 const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -160,8 +160,16 @@ class _GoalDetailViewState extends ConsumerState<_GoalDetailView> {
     try {
       final api = ref.read(apiServiceProvider);
       await api.delete('/goals/${widget.goal.id}');
-      if (mounted) context.pop();
-    } catch (_) {}
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete goal.')),
+        );
+      }
+    }
   }
 
   Future<void> _pickDate({required bool isStart}) async {
