@@ -273,7 +273,6 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
                 const Spacer(),
                 TextButton(
                   onPressed: () {
-                    if (_dirty) _save();
                     setState(() => _descFullView = false);
                   },
                   style: TextButton.styleFrom(
@@ -476,10 +475,9 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
   }
 
   Widget _buildCompactView(BuildContext context, double bottomPadding) {
-    return SingleChildScrollView(
+    return Padding(
       padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + bottomPadding),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildTopSection(context),
@@ -503,22 +501,25 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
             onChanged: (_) => _markDirty(),
           ),
           const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () => setState(() => _descFullView = true),
-            child: Text(
-              _descCtrl.text.isNotEmpty
-                  ? _descCtrl.text
-                  : 'add details, deliverables, or notes...',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _descCtrl.text.isNotEmpty
-                        ? AppColors.contentSecondary
-                        : AppColors.contentTertiary,
-                  ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _descFullView = true),
+              child: SingleChildScrollView(
+                child: Text(
+                  _descCtrl.text.isNotEmpty
+                      ? _descCtrl.text
+                      : 'add details, deliverables, or notes...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _descCtrl.text.isNotEmpty
+                            ? AppColors.contentSecondary
+                            : AppColors.contentTertiary,
+                        height: 1.5,
+                      ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           if (_dirty)
             SizedBox(
               width: double.infinity,

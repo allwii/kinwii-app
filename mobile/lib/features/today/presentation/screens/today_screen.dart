@@ -1247,22 +1247,22 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
             const SizedBox(height: 16),
 
-            // Description (tappable, with visual height)
-            GestureDetector(
-              onTap: () => setState(() => _descFullView = true),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 60),
-                child: Text(
-                  _descCtrl.text.isNotEmpty
-                      ? _descCtrl.text
-                      : 'What\u2019s the deliverable? e.g. "Draft v1 of proposal"',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _descCtrl.text.isNotEmpty
-                            ? AppColors.contentSecondary
-                            : AppColors.contentTertiary,
-                      ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+            // Description (tappable, scrollable)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _descFullView = true),
+                child: SingleChildScrollView(
+                  child: Text(
+                    _descCtrl.text.isNotEmpty
+                        ? _descCtrl.text
+                        : 'What\u2019s the deliverable? e.g. "Draft v1 of proposal"',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: _descCtrl.text.isNotEmpty
+                              ? AppColors.contentSecondary
+                              : AppColors.contentTertiary,
+                          height: 1.5,
+                        ),
+                  ),
                 ),
               ),
             ),
