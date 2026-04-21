@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
 import 'providers.dart';
 
@@ -74,6 +75,19 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionStatus> {
     } on DioException {
       // If not logged in or network error, default to free
       state = SubscriptionStatus.free;
+    }
+  }
+
+  /// Identify the current user to RevenueCat so purchases are linked
+  /// to the correct backend user_id. Call after registration or sign-in.
+  Future<void> identifyUser() async {
+    try {
+      final api = _ref.read(apiServiceProvider);
+      final resp = await api.get('/auth/me');
+      final userId = resp.data['id'] as String;
+      await Purchases.logIn(userId);
+    } catch (_) {
+      // Non-critical — purchases still work with anonymous RC user
     }
   }
 }

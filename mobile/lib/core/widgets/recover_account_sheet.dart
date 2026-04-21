@@ -97,6 +97,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       await auth.setOnboardingComplete();
       await auth.setOnboardingSeen();
       await ref.read(subscriptionProvider.notifier).refresh();
+      await ref.read(subscriptionProvider.notifier).identifyUser();
       if (mounted) context.go('/today');
     } catch (_) {
       if (mounted) {
