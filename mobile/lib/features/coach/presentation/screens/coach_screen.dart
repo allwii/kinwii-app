@@ -86,6 +86,7 @@ class _MessagesNotifier extends StateNotifier<_ChatState> {
       }
     }
 
+    if (!mounted) return;
     state = state.copyWith(
       messages: messages,
       briefing: briefing,
@@ -95,6 +96,7 @@ class _MessagesNotifier extends StateNotifier<_ChatState> {
 
   Future<void> send(String content) async {
     if (content.trim().isEmpty) return;
+    if (!mounted) return;
     state = state.copyWith(isSending: true);
 
     try {
@@ -103,16 +105,16 @@ class _MessagesNotifier extends StateNotifier<_ChatState> {
         'content': content.trim(),
       });
 
-      final userMsg = CoachMessage.fromJson(
-          resp.data['user_message'] as Map<String, dynamic>);
-      final assistantMsg = CoachMessage.fromJson(
-          resp.data['assistant_message'] as Map<String, dynamic>);
-
+      if (!mounted) return;
       state = state.copyWith(
-        messages: [...state.messages, userMsg, assistantMsg],
+        messages: [...state.messages,
+          CoachMessage.fromJson(resp.data['user_message'] as Map<String, dynamic>),
+          CoachMessage.fromJson(resp.data['assistant_message'] as Map<String, dynamic>),
+        ],
         isSending: false,
       );
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(isSending: false);
     }
   }
