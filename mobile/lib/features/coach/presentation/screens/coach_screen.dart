@@ -223,9 +223,9 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
                 ? const Center(
                     child:
                         CircularProgressIndicator(color: AppColors.kiwi400))
-                : _buildBody(context, chatState, sub.hasAiAccess),
+                : _buildBody(context, chatState, sub.isPro),
           ),
-          if (sub.hasAiAccess)
+          if (sub.isPro)
             _InputBar(
               controller: _inputCtrl,
               isSending: chatState.isSending,
@@ -240,16 +240,16 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
     );
   }
 
-  Widget _buildBody(BuildContext context, _ChatState chatState, bool hasAiAccess) {
+  Widget _buildBody(BuildContext context, _ChatState chatState, bool isPro) {
     final briefing = chatState.briefing;
     final hasMessages = chatState.messages.isNotEmpty;
 
     // Case 1: no messages yet and no briefing → show the fallback empty state.
     if (!hasMessages && briefing == null) {
       return _EmptyState(
-        onPrompt: hasAiAccess ? _sendPrompt : null,
+        onPrompt: isPro ? _sendPrompt : null,
         prompts: _dynamicPrompts(),
-        hasAiAccess: hasAiAccess,
+        isPro: isPro,
       );
     }
 
@@ -267,7 +267,7 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
           if (index == 0) {
             return _BriefingCard(
               briefing: briefing,
-              hasAiAccess: hasAiAccess,
+              isPro: isPro,
               onChipTap: _sendPrompt,
             );
           }
@@ -289,12 +289,12 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
 class _BriefingCard extends StatelessWidget {
   const _BriefingCard({
     required this.briefing,
-    required this.hasAiAccess,
+    required this.isPro,
     required this.onChipTap,
   });
 
   final CoachBriefing briefing;
-  final bool hasAiAccess;
+  final bool isPro;
   final ValueChanged<String> onChipTap;
 
   @override
@@ -345,7 +345,7 @@ class _BriefingCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 10),
-          if (hasAiAccess && briefing.body != null) ...[
+          if (isPro && briefing.body != null) ...[
             Text(
               briefing.body!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -433,12 +433,12 @@ class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.onPrompt,
     required this.prompts,
-    required this.hasAiAccess,
+    required this.isPro,
   });
 
   final ValueChanged<String>? onPrompt;
   final List<String> prompts;
-  final bool hasAiAccess;
+  final bool isPro;
 
   @override
   Widget build(BuildContext context) {
@@ -471,7 +471,7 @@ class _EmptyState extends StatelessWidget {
                   ?.copyWith(color: AppColors.contentSecondary, height: 1.5),
             ),
             const SizedBox(height: 24),
-            if (!hasAiAccess)
+            if (!isPro)
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

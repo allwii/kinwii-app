@@ -1,0 +1,63 @@
+default_platform(:ios)
+
+platform :ios do
+
+  # -------------------------------------------------------
+  # Build the Flutter iOS app
+  # -------------------------------------------------------
+  desc "Build Flutter iOS app"
+  lane :build do |options|
+    # Ensure clean state
+    sh("cd ../.. && flutter clean")
+    sh("cd ../.. && flutter pub get")
+
+    # Build the IPA
+    api_url = options[:api_url] || "https://app.kinwii.com"
+    rc_key = options[:rc_key] || ENV["REVENUECAT_IOS_KEY"] || ""
+
+    dart_defines = "--dart-define=API_BASE_URL=#{api_url}"
+    dart_defines += " --dart-define=REVENUECAT_IOS_KEY=#{rc_key}" unless rc_key.empty?
+
+    sh("cd ../.. && flutter build ipa #{dart_defines} --export-options-plist=ios/ExportOptions.plist")
+  end
+
+  # -------------------------------------------------------
+  # Upload to TestFlight
+  # -------------------------------------------------------
+  desc "Upload to TestFlight"
+  lane :beta do |options|
+    build(options)
+
+    upload_to_testflight(
+      ipa: "../../build/ios/ipa/kinwii.ipa",
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  # -------------------------------------------------------
+  # Upload to App Store (production)
+  # -------------------------------------------------------
+  desc "Upload to App Store for review"
+  lane :release do |options|
+    build(options)
+
+    upload_to_app_store(
+      ipa: "../../build/ios/ipa/kinwii.ipa",
+      skip_metadata: true,
+      skip_screenshots: true,
+      submit_for_review: false, # Set to true when ready for auto-submit
+    )
+  end
+
+  # -------------------------------------------------------
+  # Just upload an existing IPA to TestFlight (skip build)
+  # -------------------------------------------------------
+  desc "Upload existing IPA to TestFlight"
+  lane :upload_testflight do
+    upload_to_testflight(
+      ipa: "../../build/ios/ipa/kinwii.ipa",
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+end

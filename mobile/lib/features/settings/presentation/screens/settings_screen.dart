@@ -95,7 +95,7 @@ class _UserProfileNotifier extends StateNotifier<AsyncValue<_UserProfile>> {
 
 class _UserStats {
   final int totalCompleted;
-  final int currentStreak; // consecutive rhythm weeks
+  final int currentStreak;
   final int goalCount;
 
   const _UserStats({
@@ -112,14 +112,12 @@ final _userStatsProvider = FutureProvider.autoDispose<_UserStats>((ref) async {
         await api.get('/analytics/progress', queryParameters: {'weeks': 12});
     final data = resp.data as Map<String, dynamic>;
 
-    // Total completed tasks across all weeks
     final weeks = (data['weekly_completions'] as List<dynamic>?) ?? [];
     int totalCompleted = 0;
     for (final w in weeks) {
       totalCompleted += (w['completed_tasks'] as int? ?? 0);
     }
 
-    // Current streak of consecutive rhythm weeks (from most recent back)
     final rhythmWeeks = (data['rhythm_weeks'] as List<dynamic>?) ?? [];
     int streak = 0;
     for (int i = rhythmWeeks.length - 1; i >= 0; i--) {
@@ -161,78 +159,17 @@ class SettingsScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
           children: [
-            // --- Profile header: avatar + name + badges ---
-            Center(
-              child: Column(
-                children: [
-                  // Avatar
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.kiwi100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.person,
-                        color: AppColors.kiwi600, size: 36),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Name
-                  // profileAsync.when(
-                  //   data: (profile) => Text(
-                  //     profile.name ?? 'Kinwii member',
-                  //     style: Theme.of(context)
-                  //         .textTheme
-                  //         .titleLarge
-                  //         ?.copyWith(
-                  //           color: AppColors.content,
-                  //           fontWeight: FontWeight.w700,
-                  //         ),
-                  //   ),
-                  //   loading: () => const SizedBox(height: 24),
-                  //   error: (_, __) => Text(
-                  //     'Me',
-                  //     style: Theme.of(context)
-                  //         .textTheme
-                  //         .titleLarge
-                  //         ?.copyWith(color: AppColors.content),
-                  //   ),
-                  // ),
-                  const SizedBox(height: 4),
-
-                  // Subscription tier chip
-                  if (sub.isPro)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.kiwi400,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'PRO',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.8,
-                            ),
-                      ),
-                    )
-                  else if (sub.isTrial)
-                    Text(
-                      '${sub.trialDaysRemaining} days left on trial',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.contentSecondary,
-                          ),
-                    ),
-                ],
-              ),
+            Text(
+              'Settings',
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineLarge
+                  ?.copyWith(color: AppColors.content),
             ),
+            const SizedBox(height: 20),
 
+            // --- Subscription banner ---
+            _SubscriptionBanner(sub: sub, onTap: () => context.push('/pro')),
             const SizedBox(height: 20),
 
             // --- Badges row ---
@@ -264,12 +201,6 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
             const SizedBox(height: 24),
-
-            // --- Get Kinwii Pro banner ---
-            if (!sub.isPro) ...[
-              _ProBanner(onTap: () => context.push('/pro')),
-              const SizedBox(height: 20),
-            ],
 
             // --- General ---
             const _SectionLabel(label: 'GENERAL'),
@@ -341,13 +272,31 @@ class SettingsScreen extends ConsumerWidget {
 // Pro banner
 // ---------------------------------------------------------------------------
 
-class _ProBanner extends StatelessWidget {
-  const _ProBanner({required this.onTap});
+/// Dynamic subscription banner — shows different states:
+/// - Trial active: countdown + upgrade button (like Structured Pro screenshot 2)
+/// - Not subscribed (trial expired): upgrade CTA (like screenshot 1)
+/// - Subscribed: Pro active + manage subscription
+class _SubscriptionBanner extends StatelessWidget {
+  const _SubscriptionBanner({required this.sub, required this.onTap});
 
+  final SubscriptionStatus sub;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    // State 1: Active Pro subscriber
+    if (sub.isPro && !sub.isTrial) {
+      return _buildProActive(context);
+    }
+    // State 2: Trial active
+    if (sub.isTrial) {
+      return _buildTrialActive(context);
+    }
+    // State 3: Not subscribed / trial expired
+    return _buildUpgrade(context);
+  }
+
+  Widget _buildProActive(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -357,13 +306,147 @@ class _ProBanner extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.kiwi200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.kiwi400,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.workspace_premium,
+                      color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kinwii Pro',
+                        style:
+                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color: AppColors.content,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'All features unlocked',
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.contentSecondary,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right,
+                    size: 20, color: AppColors.contentTertiary),
+              ],
+            ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrialActive(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.kiwi50, AppColors.kiwi100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.kiwi200),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.kiwi400,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.workspace_premium,
+                      color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kinwii Pro Trial',
+                        style:
+                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color: AppColors.content,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Your free trial ends in ${sub.trialDaysRemaining} day${sub.trialDaysRemaining == 1 ? '' : 's'}',
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.contentSecondary,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.kiwi400,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Upgrade',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUpgrade(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.kiwi300.withValues(alpha: 0.3), AppColors.kiwi100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.kiwi200),
       ),
       child: Material(
         color: Colors.transparent,
@@ -377,32 +460,63 @@ class _ProBanner extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.workspace_premium,
-                        color: AppColors.kiwi600, size: 22),
-                    const SizedBox(width: 8),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.kiwi400,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.workspace_premium,
+                          color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 14),
                     Expanded(
-                      child: Text(
-                        'Get Kinwii Pro',
-                        style:
-                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Get Kinwii Pro',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
                                   color: AppColors.content,
                                   fontWeight: FontWeight.w600,
                                 ),
-                      ),
-                    ),
-                    Text(
-                      'Learn more',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.kiwi600,
-                            fontWeight: FontWeight.w500,
                           ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Unlock all features and AI coaching',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: AppColors.contentSecondary,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                const _BenefitRow(text: 'Plan and focus better'),
-                const _BenefitRow(text: 'Access to all features'),
-                const _BenefitRow(text: 'Plan smarter with AI'),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: onTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.kiwi400,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Upgrade Now'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -412,33 +526,8 @@ class _ProBanner extends StatelessWidget {
   }
 }
 
-class _BenefitRow extends StatelessWidget {
-  const _BenefitRow({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Row(
-        children: [
-          const Icon(Icons.check, color: AppColors.kiwi600, size: 15),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.contentSecondary,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Badge item — one stat in the profile badges row
+// Section label
 // ---------------------------------------------------------------------------
 
 class _BadgeItem extends StatelessWidget {
@@ -498,8 +587,6 @@ class _BadgeItem extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Section label
 // ---------------------------------------------------------------------------
 
 class _SectionLabel extends StatelessWidget {

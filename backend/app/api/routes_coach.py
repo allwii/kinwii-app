@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
-from app.middleware.subscription_middleware import _is_pro, has_ai_access, require_ai_access, require_pro
+from app.middleware.subscription_middleware import _is_pro, require_active_access, require_pro
 from app.models.coach_briefing import CoachBriefing
 from app.models.coach_message import CoachMessage
 from app.models.user import User
@@ -40,7 +40,7 @@ async def list_messages(
 async def send_message(
     body: CoachMessageSend,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_ai_access),
+    current_user: User = Depends(require_active_access),
     ai: AIService = Depends(get_ai_service),
 ):
     # Store user message
@@ -97,7 +97,7 @@ async def get_daily_briefing(
     stripped so the client can render a paywall teaser.
     """
     today = date.today()
-    is_pro = has_ai_access(current_user)
+    is_pro = _is_pro(current_user)
 
     briefing = (
         db.query(CoachBriefing)

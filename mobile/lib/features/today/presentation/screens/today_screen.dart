@@ -527,7 +527,7 @@ class TodayScreen extends ConsumerWidget {
               ),
 
               // AI suggested focus (below tasks) — hidden when AI trial expired
-              if (sub.hasAiAccess)
+              if (sub.isPro)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),

@@ -1035,17 +1035,6 @@ class _ProUpsellScreen extends StatelessWidget {
 
           const Spacer(),
 
-          // Trial note
-          Center(
-            child: Text(
-              'Free for 7 days, then cancel anytime.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.contentTertiary,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
           if (error != null) ...[
             Center(
               child: Text(
@@ -1056,18 +1045,17 @@ class _ProUpsellScreen extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           _PrimaryButton(
-            label: 'Start 7-day free trial',
+            label: 'Try Kinwii Pro',
             onPressed: onStartTrial,
             isLoading: isLoading,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Center(
-            child: TextButton(
-              onPressed: isLoading ? null : onSkip,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.contentSecondary,
-              ),
-              child: const Text('Continue with Free'),
+            child: Text(
+              'Free for 3 days. No commitment.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
             ),
           ),
         ],

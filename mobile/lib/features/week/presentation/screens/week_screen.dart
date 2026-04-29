@@ -446,7 +446,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                                 onSave: () => _saveIntent(plan),
                                 onCancel: () =>
                                     setState(() => _editingIntent = false),
-                                onSuggestIntent: sub.hasAiAccess ? () => _suggestIntent(plan) : null,
+                                onSuggestIntent: sub.isPro ? () => _suggestIntent(plan) : null,
                               )
                             : _IntentCardReadOnly(plan: plan),
                   ),
@@ -466,7 +466,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                             ),
                       ),
                       const Spacer(),
-                      if (isCurrentWeek && sub.hasAiAccess)
+                      if (isCurrentWeek && sub.isPro)
                         planAsync.maybeWhen(
                           data: (plan) => plan != null
                               ? GestureDetector(

@@ -1,0 +1,68 @@
+default_platform(:android)
+
+platform :android do
+
+  # -------------------------------------------------------
+  # Build the Flutter Android app bundle
+  # -------------------------------------------------------
+  desc "Build Flutter Android app bundle"
+  lane :build do |options|
+    sh("cd ../.. && flutter clean")
+    sh("cd ../.. && flutter pub get")
+
+    api_url = options[:api_url] || "https://app.kinwii.com"
+    rc_key = options[:rc_key] || ENV["REVENUECAT_ANDROID_KEY"] || ""
+
+    dart_defines = "--dart-define=API_BASE_URL=#{api_url}"
+    dart_defines += " --dart-define=REVENUECAT_ANDROID_KEY=#{rc_key}" unless rc_key.empty?
+
+    sh("cd ../.. && flutter build appbundle --release #{dart_defines}")
+  end
+
+  # -------------------------------------------------------
+  # Upload to Google Play internal testing
+  # -------------------------------------------------------
+  desc "Upload to Google Play internal testing"
+  lane :beta do |options|
+    build(options)
+
+    upload_to_play_store(
+      track: "internal",
+      aab: "../../build/app/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  # -------------------------------------------------------
+  # Upload to Google Play production
+  # -------------------------------------------------------
+  desc "Upload to Google Play production"
+  lane :release do |options|
+    build(options)
+
+    upload_to_play_store(
+      track: "production",
+      aab: "../../build/app/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  # -------------------------------------------------------
+  # Just upload existing AAB (skip build)
+  # -------------------------------------------------------
+  desc "Upload existing AAB to internal testing"
+  lane :upload_internal do
+    upload_to_play_store(
+      track: "internal",
+      aab: "../../build/app/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+end

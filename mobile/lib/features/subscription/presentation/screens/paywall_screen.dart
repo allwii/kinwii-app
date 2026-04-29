@@ -35,6 +35,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   }
 
   Future<void> _loadOfferings() async {
+    if (!await Purchases.isConfigured) return;
     try {
       final offerings = await Purchases.getOfferings();
       if (mounted && offerings.current != null) {
@@ -76,8 +77,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     setState(() => _purchasing = true);
     try {
       final result = await Purchases.purchase(PurchaseParams.package(package));
-      if (result.customerInfo.entitlements.all['pro']?.isActive ?? false) {
-        await ref.read(subscriptionProvider.notifier).refresh();
+      // Check if any entitlement is active (covers 'pro', 'Kinwii Pro', etc.)
+      final hasActiveEntitlement = result.customerInfo.entitlements.active.isNotEmpty;
+      if (hasActiveEntitlement) {
+        ref.read(subscriptionProvider.notifier).confirmPurchase();
         if (mounted) context.pop();
       }
     } on PlatformException catch (e) {
@@ -95,12 +98,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   }
 
   Future<void> _restore() async {
+    if (!await Purchases.isConfigured) return;
     setState(() => _purchasing = true);
     try {
       final customerInfo = await Purchases.restorePurchases();
-      await ref.read(subscriptionProvider.notifier).refresh();
       if (mounted) {
-        if (customerInfo.entitlements.all['pro']?.isActive ?? false) {
+        if (customerInfo.entitlements.active.isNotEmpty) {
+          ref.read(subscriptionProvider.notifier).confirmPurchase();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Purchases restored!')),
           );
@@ -157,7 +161,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Deeper AI coaching, unlimited goals, and more.',
+                  'Unlimited goals, AI coaching, and more.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppColors.contentSecondary,
                       ),
@@ -239,7 +243,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                         : Text(
                             sub.isTrial
                                 ? 'Subscribe now'
-                                : 'Start 7-day free trial',
+                                : 'Start 3-day free trial',
                           ),
                   ),
                 ),

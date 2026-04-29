@@ -7,12 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
-from app.middleware.subscription_middleware import (
-    AI_TRIAL_DAYS,
-    get_user_tier,
-    has_ai_access,
-    _is_trial_expired,
-)
+from app.middleware.subscription_middleware import get_user_tier, _is_trial_expired
 from app.models.user import SubscriptionTier, User
 from app.schemas.subscription import SubscriptionStatus
 
@@ -33,13 +28,11 @@ async def get_subscription_status(
         and current_user.trial_end_date > now
         and not current_user.subscription_expires_at
     )
-    ai_trial_expired = not has_ai_access(current_user)
     trial_expired = _is_trial_expired(current_user)
 
     return SubscriptionStatus(
         tier=tier,
         is_trial=is_trial,
-        ai_trial_expired=ai_trial_expired,
         trial_expired=trial_expired,
         trial_end_date=current_user.trial_end_date,
         subscription_expires_at=current_user.subscription_expires_at,
@@ -52,28 +45,31 @@ async def revenuecat_webhook(
     db: Session = Depends(get_db),
     authorization: str | None = Header(default=None),
 ):
-    """Handle RevenueCat server-to-server webhook notifications.
-
-    See https://www.revenuecat.com/docs/integrations/webhooks
-    """
-    # Verify webhook auth header matches our secret
+    """Handle RevenueCat server-to-server webhook notifications."""
     expected = getattr(settings, "REVENUECAT_WEBHOOK_SECRET", None)
     if expected and authorization != f"Bearer {expected}":
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
     body = await request.json()
+    logger.info("RevenueCat webhook received: %s", body)
+
     event = body.get("event", {})
     event_type = event.get("type", "")
     app_user_id = event.get("app_user_id", "")
 
     if not app_user_id:
-        logger.warning("RevenueCat webhook missing app_user_id")
+        logger.warning("RevenueCat webhook missing app_user_id, full body: %s", body)
         return {"status": "ignored"}
 
     user = db.query(User).filter(User.id == app_user_id).first()
     if not user:
         logger.warning("RevenueCat webhook: user %s not found", app_user_id)
         return {"status": "ignored"}
+
+    logger.info(
+        "RevenueCat webhook: type=%s user=%s expiration=%s",
+        event_type, app_user_id, event.get("expiration_at_ms"),
+    )
 
     if event_type in (
         "INITIAL_PURCHASE",
@@ -88,6 +84,9 @@ async def revenuecat_webhook(
                 expiration / 1000, tz=timezone.utc
             )
             logger.info("User %s upgraded to Pro until %s", app_user_id, user.subscription_expires_at)
+        else:
+            # Some events may not include expiration — still mark as Pro
+            logger.warning("RevenueCat webhook: no expiration_at_ms for %s event", event_type)
 
     elif event_type in ("CANCELLATION", "EXPIRATION"):
         user.subscription_tier = SubscriptionTier.free

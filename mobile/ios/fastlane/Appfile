@@ -1,0 +1,5 @@
+app_identifier("com.allvii.kinwii")
+apple_id(ENV["APPLE_ID"] || "ktian@soxfy.com")
+team_id("R5C9QHP795")
+
+itc_team_id(ENV["ITC_TEAM_ID"]) # App Store Connect Team ID (set if needed)
