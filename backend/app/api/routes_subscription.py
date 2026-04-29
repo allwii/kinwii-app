@@ -61,6 +61,20 @@ async def revenuecat_webhook(
         logger.warning("RevenueCat webhook missing app_user_id, full body: %s", body)
         return {"status": "ignored"}
 
+    # RevenueCat sends its own anonymous ID ($RCAnonymousID:...) if the user
+    # was never identified via Purchases.logIn(). Skip these — we can't map
+    # them to a backend user.
+    if app_user_id.startswith("$"):
+        logger.warning("RevenueCat webhook: anonymous RC user %s, cannot map to backend user", app_user_id)
+        return {"status": "ignored"}
+
+    try:
+        from uuid import UUID as UUIDType
+        UUIDType(app_user_id)
+    except ValueError:
+        logger.warning("RevenueCat webhook: invalid user ID format: %s", app_user_id)
+        return {"status": "ignored"}
+
     user = db.query(User).filter(User.id == app_user_id).first()
     if not user:
         logger.warning("RevenueCat webhook: user %s not found", app_user_id)

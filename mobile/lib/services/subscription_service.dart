@@ -62,7 +62,14 @@ final subscriptionProvider =
 
 class SubscriptionNotifier extends StateNotifier<SubscriptionStatus> {
   SubscriptionNotifier(this._ref) : super(SubscriptionStatus.free) {
-    refresh();
+    _init();
+  }
+
+  Future<void> _init() async {
+    // Identify user to RevenueCat on every app launch so webhooks
+    // use the correct backend user ID instead of $RCAnonymousID.
+    await identifyUser();
+    await refresh();
   }
 
   final Ref _ref;
