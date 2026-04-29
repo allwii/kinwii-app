@@ -3,15 +3,30 @@ default_platform(:ios)
 platform :ios do
 
   # -------------------------------------------------------
+  # App Store Connect API key (avoids password prompts)
+  # Set these env vars or pass as options:
+  #   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH
+  # -------------------------------------------------------
+  def api_key
+    if ENV["ASC_KEY_ID"] && ENV["ASC_ISSUER_ID"]
+      app_store_connect_api_key(
+        key_id: ENV["ASC_KEY_ID"],
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_filepath: ENV["ASC_KEY_PATH"] || "fastlane/AuthKey.p8",
+      )
+    else
+      nil
+    end
+  end
+
+  # -------------------------------------------------------
   # Build the Flutter iOS app
   # -------------------------------------------------------
   desc "Build Flutter iOS app"
   lane :build do |options|
-    # Ensure clean state
     sh("cd ../.. && flutter clean")
     sh("cd ../.. && flutter pub get")
 
-    # Build the IPA
     api_url = options[:api_url] || "https://app.kinwii.com"
     rc_key = options[:rc_key] || ENV["REVENUECAT_IOS_KEY"] || ""
 
@@ -24,39 +39,53 @@ platform :ios do
   # -------------------------------------------------------
   # Upload to TestFlight
   # -------------------------------------------------------
-  desc "Upload to TestFlight"
+  desc "Build and upload to TestFlight"
   lane :beta do |options|
     build(options)
 
     upload_to_testflight(
-      ipa: "../../build/ios/ipa/kinwii.ipa",
+      api_key: api_key,
+      ipa: "../build/ios/ipa/kinwii.ipa",
       skip_waiting_for_build_processing: true,
     )
   end
 
   # -------------------------------------------------------
-  # Upload to App Store (production)
+  # Upload to App Store for review
   # -------------------------------------------------------
-  desc "Upload to App Store for review"
+  desc "Build and upload to App Store"
   lane :release do |options|
     build(options)
 
     upload_to_app_store(
-      ipa: "../../build/ios/ipa/kinwii.ipa",
+      api_key: api_key,
+      ipa: "../build/ios/ipa/kinwii.ipa",
       skip_metadata: true,
       skip_screenshots: true,
-      submit_for_review: false, # Set to true when ready for auto-submit
+      submit_for_review: false,
     )
   end
 
   # -------------------------------------------------------
-  # Just upload an existing IPA to TestFlight (skip build)
+  # Just upload existing IPA (skip build)
   # -------------------------------------------------------
   desc "Upload existing IPA to TestFlight"
   lane :upload_testflight do
     upload_to_testflight(
-      ipa: "../../build/ios/ipa/kinwii.ipa",
+      api_key: api_key,
+      ipa: "../build/ios/ipa/kinwii.ipa",
       skip_waiting_for_build_processing: true,
+    )
+  end
+
+  desc "Upload existing IPA to App Store"
+  lane :upload_appstore do
+    upload_to_app_store(
+      api_key: api_key,
+      ipa: "../build/ios/ipa/kinwii.ipa",
+      skip_metadata: true,
+      skip_screenshots: true,
+      submit_for_review: false,
     )
   end
 

@@ -36,3 +36,7 @@ Runner/GeneratedPluginRegistrant.*
 # Fastlane secrets
 fastlane/AuthKey*.p8
 fastlane/report.xml
+
+# Fastlane secrets
+fastlane/.env
+fastlane/AuthKey*.p8
