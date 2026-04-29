@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../services/subscription_service.dart';
@@ -126,10 +127,151 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     }
   }
 
+  Future<void> _manageSubscription() async {
+    try {
+      if (await Purchases.isConfigured) {
+        final info = await Purchases.getCustomerInfo();
+        final managementUrl = info.managementURL;
+        if (managementUrl != null) {
+          await launchUrl(
+            Uri.parse(managementUrl),
+            mode: LaunchMode.externalApplication,
+          );
+          return;
+        }
+      }
+    } catch (_) {}
+    await launchUrl(
+      Uri.parse('https://apps.apple.com/account/subscriptions'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  Widget _buildProManagement(BuildContext context, SubscriptionStatus sub) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: AppColors.content),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Pro badge
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.kiwi400,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(Icons.workspace_premium,
+                    color: Colors.white, size: 32),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Kinwii Pro',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: AppColors.content,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You have full access to all features.',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.contentSecondary,
+                    ),
+              ),
+              const SizedBox(height: 32),
+
+              // Features included
+              _ProFeature(icon: Icons.flag, label: 'Unlimited goals'),
+              _ProFeature(icon: Icons.auto_awesome, label: 'AI coaching & insights'),
+              _ProFeature(icon: Icons.today, label: 'Smart daily focus'),
+              _ProFeature(icon: Icons.insights, label: 'Progress analytics'),
+
+              if (sub.subscriptionExpiresAt != null) ...[
+                const SizedBox(height: 32),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Subscription',
+                        style:
+                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color: AppColors.content,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Renews ${_formatDate(sub.subscriptionExpiresAt!)}',
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.contentSecondary,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const Spacer(),
+
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _manageSubscription,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.content,
+                    side: const BorderSide(color: AppColors.borderSubtle),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Manage subscription'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[date.month]} ${date.day}, ${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final sub = ref.watch(subscriptionProvider);
     final isHardPaywall = sub.isHardPaywall;
+
+    // If user is already Pro (not on trial), show management view
+    if (sub.isPro && !sub.isTrial) {
+      return _buildProManagement(context, sub);
+    }
 
     return PopScope(
       canPop: !isHardPaywall,
@@ -467,6 +609,45 @@ class _PlanTab extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pro feature row (for management view)
+// ---------------------------------------------------------------------------
+
+class _ProFeature extends StatelessWidget {
+  const _ProFeature({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.kiwi50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: AppColors.kiwi600),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.content,
+                ),
+          ),
+          const Spacer(),
+          const Icon(Icons.check_circle, size: 20, color: AppColors.kiwi400),
+        ],
       ),
     );
   }
