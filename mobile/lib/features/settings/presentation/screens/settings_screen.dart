@@ -196,7 +196,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              loading: () => const SizedBox(height: 72),
+              loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
             ),
 

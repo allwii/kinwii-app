@@ -497,12 +497,16 @@ class TodayScreen extends ConsumerWidget {
                 ),
                 data: (tasks) {
                   if (tasks.isEmpty) {
-                    return const SliverToBoxAdapter(
+                    final hour = DateTime.now().hour;
+                    final emptyMsg = hour < 12
+                        ? 'A fresh start. What would make today meaningful?'
+                        : hour < 17
+                            ? 'Still time to focus. Add a task to get going.'
+                            : 'Winding down? Plan something for tomorrow.';
+                    return SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: EmptyState(
-                          message: 'No tasks yet — add one to get started.',
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: EmptyState(message: emptyMsg),
                       ),
                     );
                   }

@@ -73,6 +73,20 @@ class AccountScreen extends ConsumerWidget {
             error: (_, __) => _ProfileHeader(name: null, email: null),
           ),
 
+          if (!hasEmail) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Your data is saved on this device only.\nCreate an account to back it up.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.contentSecondary,
+                      height: 1.4,
+                    ),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 24),
 
           // Account actions

@@ -230,7 +230,9 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
               controller: _inputCtrl,
               isSending: chatState.isSending,
               onSend: _send,
-            ),
+            )
+          else
+            _LockedInputBar(onTap: () => context.push('/pro')),
         ],
       ),
           ),
@@ -621,6 +623,62 @@ class _TypingIndicator extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Input bar
 // ---------------------------------------------------------------------------
+
+class _LockedInputBar extends StatelessWidget {
+  const _LockedInputBar({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          24, 12, 24, 12 + MediaQuery.of(context).padding.bottom,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.lock_outline,
+                size: 16, color: AppColors.contentTertiary),
+            const SizedBox(width: 8),
+            Text(
+              'Upgrade to Pro to chat with your coach',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
+            ),
+            const Spacer(),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.kiwi400,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Upgrade',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _InputBar extends StatelessWidget {
   const _InputBar({

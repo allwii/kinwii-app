@@ -313,7 +313,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 // Feature comparison
                 const _FeatureRow(label: 'Goals', free: '1', pro: 'Unlimited'),
                 const _FeatureRow(label: 'AI Coach', free: '—', pro: 'Unlimited'),
-                const _FeatureRow(label: 'Daily AI focus', free: '-', pro: 'Daily'),
+                const _FeatureRow(label: 'Daily AI focus', free: '—', pro: 'Daily'),
                 const _FeatureRow(label: 'Pattern insights', free: '—', pro: 'Included'),
                 const _FeatureRow(label: 'Progress analytics', free: '—', pro: 'Included'),
                 const SizedBox(height: 32),
@@ -456,6 +456,38 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                     ),
                   ),
                 ],
+
+                // Legal links (required by App Store)
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse('https://kinwii.com/terms'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.contentTertiary,
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                      child: const Text('Terms of Use'),
+                    ),
+                    Text('  ·  ',
+                        style: TextStyle(color: AppColors.contentTertiary, fontSize: 12)),
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse('https://kinwii.com/privacy'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.contentTertiary,
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                      child: const Text('Privacy Policy'),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

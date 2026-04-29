@@ -771,37 +771,52 @@ class _GoalScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: SingleChildScrollView(
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _suggestions.map((s) {
-                  return GestureDetector(
-                    onTap: () => controller.text = s,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderSubtle),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
+            child: ValueListenableBuilder(
+              valueListenable: controller,
+              builder: (_, value, __) => SingleChildScrollView(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _suggestions.map((s) {
+                    final isSelected = value.text == s;
+                    return GestureDetector(
+                      onTap: () => controller.text = s,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.kiwi50 : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.kiwi400
+                                : AppColors.borderSubtle,
+                            width: isSelected ? 1.5 : 1,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        s,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.content,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
                             ),
+                          ],
+                        ),
+                        child: Text(
+                          s,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: isSelected
+                                    ? AppColors.kiwi600
+                                    : AppColors.content,
+                                fontWeight: isSelected
+                                    ? FontWeight.w500
+                                    : FontWeight.w400,
+                              ),
+                        ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ),
@@ -1045,7 +1060,7 @@ class _ProUpsellScreen extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           _PrimaryButton(
-            label: 'Try Kinwii Pro',
+            label: 'Continue with Free Trial',
             onPressed: onStartTrial,
             isLoading: isLoading,
           ),
