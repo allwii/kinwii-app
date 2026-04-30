@@ -388,71 +388,81 @@ class _WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // Soft light gradient: kiwi50 at the top fading to the standard background.
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [AppColors.kiwi50, AppColors.background],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          stops: [0.0, 0.65],
+          stops: [0.0, 0.55],
         ),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Spacer(flex: 2),
+              const Spacer(flex: 1),
 
               // Accent icon
               Container(
-                width: 64,
-                height: 64,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
                   color: AppColors.kiwi100,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
                   Icons.eco_outlined,
-                  size: 36,
+                  size: 32,
                   color: AppColors.kiwi600,
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Hero headline
               Text(
-                'Welcome to',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: AppColors.contentSecondary,
-                      fontWeight: FontWeight.w400,
-                    ),
-              ),
-              Text(
-                'Kinwii',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                'Stop staying busy.\nStart moving forward.',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       color: AppColors.content,
-                      letterSpacing: -1,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
                     ),
               ),
-              const SizedBox(height: 16),
-
+              const SizedBox(height: 12),
               Text(
-                'Plan with clarity.\nReflect with purpose.',
+                'Turn your goals into focused weekly actions and daily progress.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppColors.contentSecondary,
-                      height: 1.6,
+                      height: 1.5,
                     ),
               ),
 
-              const Spacer(flex: 3),
+              const SizedBox(height: 32),
+
+              // Inline benefits
+              const _WelcomeBenefit(
+                icon: Icons.flag_outlined,
+                text: 'Set clear goals and weekly focus',
+              ),
+              const SizedBox(height: 14),
+              const _WelcomeBenefit(
+                icon: Icons.trending_up_rounded,
+                text: 'Track progress with smart insights',
+              ),
+              const SizedBox(height: 14),
+              const _WelcomeBenefit(
+                icon: Icons.auto_awesome_rounded,
+                text: 'Reflect and improve with AI',
+              ),
+
+              const Spacer(flex: 2),
 
               _PrimaryButton(
                 label: 'Get Started',
                 onPressed: onGetStarted,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Center(
                 child: TextButton(
                   onPressed: onRecover,
@@ -466,6 +476,39 @@ class _WelcomeScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _WelcomeBenefit extends StatelessWidget {
+  const _WelcomeBenefit({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.kiwi100.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: AppColors.kiwi600),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -505,7 +548,7 @@ class _BenefitsScreen extends StatelessWidget {
             icon: Icons.flag_outlined,
             title: 'Plan your goals',
             description:
-                'Set clear goals and break them into weekly focus areas.',
+                'Set clear goals and break them into weekly and daily focus areas.',
           ),
           const SizedBox(height: 12),
           const _BenefitCard(
@@ -519,7 +562,7 @@ class _BenefitsScreen extends StatelessWidget {
             icon: Icons.auto_awesome_rounded,
             title: 'Reflect & improve',
             description:
-                'Weekly reviews powered by AI help you grow consistently.',
+                'Daily & Weekly reflections powered by AI help you grow consistently.',
           ),
           const Spacer(),
           _PrimaryButton(label: 'Continue', onPressed: onContinue),
@@ -1004,7 +1047,7 @@ class _ProUpsellScreen extends StatelessWidget {
           const SizedBox(height: 20),
 
           Text(
-            'Unlock the full\nexperience',
+            'Unlock the full experience',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: AppColors.content,
                   fontWeight: FontWeight.w700,
@@ -1037,13 +1080,13 @@ class _ProUpsellScreen extends StatelessWidget {
             ),
             child: const Column(
               children: [
-                _ProBenefitRow(text: 'Unlimited goals'),
+                _ProBenefitRow(icon: Icons.today, text: 'Smart daily focus'),
                 SizedBox(height: 14),
-                _ProBenefitRow(text: 'AI-powered coaching & insights'),
+                _ProBenefitRow(icon: Icons.flag, text: 'Unlimited goals'),
                 SizedBox(height: 14),
-                _ProBenefitRow(text: 'Smart daily focus suggestions'),
+                _ProBenefitRow(icon: Icons.auto_awesome, text: 'AI coaching & insights'),
                 SizedBox(height: 14),
-                _ProBenefitRow(text: 'Progress analytics'),
+                _ProBenefitRow(icon: Icons.insights, text: 'Progress analytics'),
               ],
             ),
           ),
@@ -1080,7 +1123,8 @@ class _ProUpsellScreen extends StatelessWidget {
 }
 
 class _ProBenefitRow extends StatelessWidget {
-  const _ProBenefitRow({required this.text});
+  const _ProBenefitRow({required this.icon, required this.text});
+  final IconData icon;
   final String text;
 
   @override
@@ -1088,17 +1132,13 @@ class _ProBenefitRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 32,
+          height: 32,
           decoration: const BoxDecoration(
             color: AppColors.kiwi50,
             shape: BoxShape.circle,
           ),
-          child: const Icon(
-            Icons.check_rounded,
-            size: 14,
-            color: AppColors.kiwi600,
-          ),
+          child: Icon(icon, size: 16, color: AppColors.kiwi600),
         ),
         const SizedBox(width: 12),
         Text(
