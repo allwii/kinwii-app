@@ -193,9 +193,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
               const SizedBox(height: 32),
 
               // Features included
+              _ProFeature(icon: Icons.today, label: 'Smart daily focus'),
               _ProFeature(icon: Icons.flag, label: 'Unlimited goals'),
               _ProFeature(icon: Icons.auto_awesome, label: 'AI coaching & insights'),
-              _ProFeature(icon: Icons.today, label: 'Smart daily focus'),
               _ProFeature(icon: Icons.insights, label: 'Progress analytics'),
 
               if (sub.subscriptionExpiresAt != null) ...[
@@ -303,20 +303,19 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Unlimited goals, AI coaching, and more.',
+                  'You have full access to all features.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppColors.contentSecondary,
                       ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
 
-                // Feature comparison
-                const _FeatureRow(label: 'Goals', free: '1', pro: 'Unlimited'),
-                const _FeatureRow(label: 'AI Coach', free: '—', pro: 'Unlimited'),
-                const _FeatureRow(label: 'Daily AI focus', free: '—', pro: 'Daily'),
-                const _FeatureRow(label: 'Pattern insights', free: '—', pro: 'Included'),
-                const _FeatureRow(label: 'Progress analytics', free: '—', pro: 'Included'),
-                const SizedBox(height: 32),
+                // Features with icons (matches Pro management view)
+                _ProFeature(icon: Icons.today, label: 'Smart daily focus'),
+                _ProFeature(icon: Icons.flag, label: 'Unlimited goals'),
+                _ProFeature(icon: Icons.auto_awesome, label: 'AI coaching & insights'),
+                _ProFeature(icon: Icons.insights, label: 'Progress analytics'),
+                const SizedBox(height: 24),
 
                 // Plan toggle
                 Container(
@@ -492,63 +491,6 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Feature comparison row
-// ---------------------------------------------------------------------------
-
-class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({
-    required this.label,
-    required this.free,
-    required this.pro,
-  });
-
-  final String label;
-  final String free;
-  final String pro;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.content,
-                  ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              free,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.contentTertiary,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              pro,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.kiwi600,
-                    fontWeight: FontWeight.w600,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
       ),
     );
   }
