@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.middleware.api_key_middleware import APIKeyMiddleware
+
 from app.api.routes_ai import router as ai_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_analytics import router as analytics_router
@@ -17,6 +19,7 @@ from app.api.routes_week import router as week_router
 
 app = FastAPI(title="Kinwii API", version="0.1.0")
 
+app.add_middleware(APIKeyMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

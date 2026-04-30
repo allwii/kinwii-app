@@ -47,6 +47,8 @@
 			</array>
 		</dict>
 	</dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSBonjourServices</key>
 	<array/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

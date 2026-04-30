@@ -2,13 +2,18 @@ import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
 import 'auth_service.dart';
 
+const _appApiKey = String.fromEnvironment('APP_API_KEY');
+
 class ApiService {
   ApiService(this._authService) {
     _dio = Dio(BaseOptions(
       baseUrl: ApiConstants.baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (_appApiKey.isNotEmpty) 'X-API-Key': _appApiKey,
+      },
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
@@ -28,7 +33,10 @@ class ApiService {
             try {
               final resp = await Dio(BaseOptions(
                 baseUrl: ApiConstants.baseUrl,
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                  'Content-Type': 'application/json',
+                  if (_appApiKey.isNotEmpty) 'X-API-Key': _appApiKey,
+                },
               )).post('/auth/register-device', data: {
                 'device_id': deviceId,
               });

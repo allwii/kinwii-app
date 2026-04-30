@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID_IOS: str = ""
     GOOGLE_CLIENT_ID_ANDROID: str = ""
     GOOGLE_CLIENT_ID_WEB: str = ""
+    APP_API_KEY: str = ""  # Shared secret for mobile app authentication
 
     model_config = {"env_file": ".env"}
 
