@@ -497,16 +497,12 @@ class TodayScreen extends ConsumerWidget {
                 ),
                 data: (tasks) {
                   if (tasks.isEmpty) {
-                    final hour = DateTime.now().hour;
-                    final emptyMsg = hour < 12
-                        ? 'A fresh start. What would make today meaningful?'
-                        : hour < 17
-                            ? 'Still time to focus. Add a task to get going.'
-                            : 'Winding down? Plan something for tomorrow.';
                     return SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: EmptyState(message: emptyMsg),
+                        child: _EmptyTodayCard(
+                          onAddTask: () => _showAddTaskSheet(context, ref),
+                        ),
                       ),
                     );
                   }
@@ -547,8 +543,13 @@ class TodayScreen extends ConsumerWidget {
                                           (plan.id, dateStr))
                                       .notifier)
                                   .removeSuggestion(title);
-                              _showAddTaskSheet(context, ref,
-                                  initialTitle: title);
+                              // Defer modal to next frame to avoid render conflict
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (context.mounted) {
+                                  _showAddTaskSheet(context, ref,
+                                      initialTitle: title);
+                                }
+                              });
                             },
                           )
                         : const SizedBox.shrink(),
@@ -795,7 +796,10 @@ class _AiSuggestionsCard extends ConsumerWidget {
         if (suggestions.isEmpty) {
           return const SizedBox.shrink();
         }
-        return Column(
+        return AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          alignment: Alignment.topCenter,
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -846,6 +850,7 @@ class _AiSuggestionsCard extends ConsumerWidget {
                   ),
                 )),
           ],
+        ),
         );
       },
     );
@@ -1260,12 +1265,16 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
             const SizedBox(height: 16),
 
-            // Description (tappable, scrollable)
-            Expanded(
+            // Description (tappable)
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 60),
               child: GestureDetector(
                 onTap: () => setState(() => _descFullView = true),
-                child: SingleChildScrollView(
-                  child: Text(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
                     _descCtrl.text.isNotEmpty
                         ? _descCtrl.text
                         : 'What\u2019s the deliverable? e.g. "Draft v1 of proposal"',
@@ -1275,7 +1284,17 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                               : AppColors.contentTertiary,
                           height: 1.5,
                         ),
-                  ),
+                      ),
+                    ),
+                    if (_descCtrl.text.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, left: 4),
+                        child: Icon(Icons.open_in_full,
+                            size: 12,
+                            color: AppColors.contentTertiary
+                                .withValues(alpha: 0.5)),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1427,6 +1446,79 @@ class _AddTaskToolbar extends StatelessWidget {
                           strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.check, size: 20, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily tip card — one tip per day, dismissible, persisted in Hive
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Empty Today card — welcoming first-visit guidance
+// ---------------------------------------------------------------------------
+
+class _EmptyTodayCard extends StatelessWidget {
+  const _EmptyTodayCard({required this.onAddTask});
+
+  final VoidCallback onAddTask;
+
+  @override
+  Widget build(BuildContext context) {
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good morning!'
+        : hour < 17
+            ? 'Good afternoon!'
+            : 'Good evening!';
+    final subtitle = hour < 17
+        ? 'What\'s the one thing that would make today a win?'
+        : 'Plan something for tomorrow to start strong.';
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.kiwi50,
+            AppColors.kiwi50.withValues(alpha: 0.3),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Text('🌱', style: TextStyle(fontSize: 36)),
+          const SizedBox(height: 12),
+          Text(
+            greeting,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.contentSecondary,
+                  height: 1.4,
+                ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onAddTask,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add your first task'),
             ),
           ),
         ],
@@ -1611,6 +1703,14 @@ class _DailyReflectionCardState extends State<_DailyReflectionCard> {
     );
     // Wizard was dismissed — persist completion for today
     await _markComplete();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✨ Nice work! Daily reflection complete.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
@@ -1794,16 +1894,36 @@ class _DailyReflectionWizardState
       height: MediaQuery.of(context).size.height * 0.75,
       child: Column(
         children: [
-          // Handle bar
+          // Handle bar + back button
           Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 8),
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.borderSubtle,
-                borderRadius: BorderRadius.circular(2),
-              ),
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+            child: Row(
+              children: [
+                if (_currentStep > 0)
+                  GestureDetector(
+                    onTap: () => _goToStep(_currentStep - 1),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(Icons.arrow_back_ios_new,
+                          size: 18, color: AppColors.contentSecondary),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 34),
+                Expanded(
+                  child: Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.borderSubtle,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 34),
+              ],
             ),
           ),
 
@@ -1848,14 +1968,12 @@ class _DailyReflectionWizardState
                       _carryIds.add(id);
                     }
                   }),
-                  onBack: () => _goToStep(0),
                   onNext: () => _goToStep(2),
                 ),
 
                 // Step 3: Tomorrow's focus
                 _DailyTomorrowStep(
                   controller: _tomorrowCtrl,
-                  onBack: () => _goToStep(1),
                   onFinish: _finish,
                 ),
               ],
@@ -2009,14 +2127,12 @@ class _DailyCarryStep extends StatelessWidget {
     required this.incomplete,
     required this.carryIds,
     required this.onToggleCarry,
-    required this.onBack,
     required this.onNext,
   });
 
   final List<Task> incomplete;
   final Set<String> carryIds;
   final void Function(String id) onToggleCarry;
-  final VoidCallback onBack;
   final VoidCallback onNext;
 
   @override
@@ -2136,24 +2252,12 @@ class _DailyCarryStep extends StatelessWidget {
           }),
 
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: OutlinedButton(
-                  onPressed: onBack,
-                  child: const Text('Back'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: onNext,
-                  child: const Text('Continue'),
-                ),
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onNext,
+              child: const Text('Continue'),
+            ),
           ),
         ],
       ),
@@ -2165,12 +2269,10 @@ class _DailyCarryStep extends StatelessWidget {
 class _DailyTomorrowStep extends StatelessWidget {
   const _DailyTomorrowStep({
     required this.controller,
-    required this.onBack,
     required this.onFinish,
   });
 
   final TextEditingController controller;
-  final VoidCallback onBack;
   final VoidCallback onFinish;
 
   @override
@@ -2205,24 +2307,12 @@ class _DailyTomorrowStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
-          Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: OutlinedButton(
-                  onPressed: onBack,
-                  child: const Text('Back'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: onFinish,
-                  child: const Text('Done'),
-                ),
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onFinish,
+              child: const Text('Done'),
+            ),
           ),
         ],
       ),

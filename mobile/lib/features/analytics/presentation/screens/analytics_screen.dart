@@ -182,7 +182,7 @@ class AnalyticsScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               _CompletionTrendSection(data.weeklyCompletions),
               const SizedBox(height: 24),
-              _EnergySection(data.energyBreakdown),
+              _WeeklyStatsSection(data.weeklyCompletions),
               const SizedBox(height: 24),
               _GoalProgressSection(data.goalProgress),
             ],
@@ -244,8 +244,8 @@ class _RhythmSection extends StatelessWidget {
                         color: w.isRhythmWeek
                             ? AppColors.kiwi400
                             : w.hadIntent || w.hadTaskDone
-                                ? AppColors.kiwi100
-                                : AppColors.surfaceAlt,
+                                ? AppColors.kiwi200
+                                : AppColors.kiwi50,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: w.isRhythmWeek
@@ -329,7 +329,7 @@ class _CompletionTrendSection extends StatelessWidget {
                             Container(
                               height: totalHeight,
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceAlt,
+                                color: AppColors.kiwi100,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                             ),
@@ -404,114 +404,113 @@ class _CompletionTrendSection extends StatelessWidget {
 // Energy breakdown section
 // ---------------------------------------------------------------------------
 
-class _EnergySection extends StatelessWidget {
-  const _EnergySection(this.breakdown);
+// ---------------------------------------------------------------------------
+// Weekly stats summary (replaces energy breakdown)
+// ---------------------------------------------------------------------------
 
-  final List<_EnergyBreakdown> breakdown;
+class _WeeklyStatsSection extends StatelessWidget {
+  const _WeeklyStatsSection(this.weeks);
 
-  static const _colors = {
-    'deep': AppColors.energyDeep,
-    'admin': AppColors.energyAdmin,
-    'creative': AppColors.energyCreative,
-    'personal': AppColors.energyPersonal,
-  };
-
-  static const _labels = {
-    'deep': 'Deep work',
-    'admin': 'Admin',
-    'creative': 'Creative',
-    'personal': 'Personal',
-  };
+  final List<_WeekCompletion> weeks;
 
   @override
   Widget build(BuildContext context) {
-    final total = breakdown.fold<int>(0, (s, e) => s + e.count);
-    if (total == 0) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Energy breakdown',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.content,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Complete some tasks to see your energy mix.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.contentTertiary,
-                ),
-          ),
-        ],
-      );
-    }
+    final totalDone = weeks.fold<int>(0, (s, w) => s + w.completedTasks);
+    final totalTasks = weeks.fold<int>(0, (s, w) => s + w.totalTasks);
+    final avgRate = totalTasks > 0
+        ? (totalDone / totalTasks * 100).round()
+        : 0;
+    final bestWeek = weeks.isNotEmpty
+        ? weeks.reduce((a, b) =>
+            a.completedTasks > b.completedTasks ? a : b)
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Energy breakdown',
+          'At a glance',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: AppColors.content,
               ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Completed tasks by energy type',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.contentTertiary,
-              ),
-        ),
         const SizedBox(height: 12),
-        // Stacked bar
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: SizedBox(
-            height: 20,
-            child: Row(
-              children: breakdown.map((e) {
-                final fraction = e.count / total;
-                return Expanded(
-                  flex: (fraction * 100).round().clamp(1, 100),
-                  child: Container(
-                    color: _colors[e.energyType] ?? AppColors.surfaceAlt,
-                  ),
-                );
-              }).toList(),
+        Row(
+          children: [
+            _StatCard(
+              emoji: '✅',
+              value: '$totalDone',
+              label: 'Tasks done',
             ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 16,
-          runSpacing: 6,
-          children: breakdown.map((e) {
-            final pct = ((e.count / total) * 100).round();
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: _colors[e.energyType] ?? AppColors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${_labels[e.energyType] ?? e.energyType} $pct%',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.contentSecondary,
-                      ),
-                ),
-              ],
-            );
-          }).toList(),
+            const SizedBox(width: 12),
+            _StatCard(
+              emoji: '📊',
+              value: '$avgRate%',
+              label: 'Completion',
+            ),
+            const SizedBox(width: 12),
+            _StatCard(
+              emoji: '🏆',
+              value: bestWeek != null && bestWeek.completedTasks > 0
+                  ? '${bestWeek.completedTasks}'
+                  : '—',
+              label: 'Best week',
+            ),
+          ],
         ),
       ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.emoji,
+    required this.value,
+    required this.label,
+  });
+
+  final String emoji;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.content,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -572,7 +571,7 @@ class _GoalProgressSection extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: g.progressPercent / 100,
                       minHeight: 8,
-                      backgroundColor: AppColors.surfaceAlt,
+                      backgroundColor: AppColors.kiwi100,
                       color: AppColors.kiwi400,
                     ),
                   ),

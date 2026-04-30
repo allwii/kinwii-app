@@ -755,13 +755,28 @@ class _IntentCard extends StatelessWidget {
                 ] else ...[
                   GestureDetector(
                     onTap: onEditTap,
-                    child: Text(
-                      plan.intent,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppColors.kiwi600,
-                            fontWeight: FontWeight.w500,
-                            height: 1.4,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            plan.intent,
+                            style:
+                                Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      color: AppColors.kiwi600,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.4,
+                                    ),
                           ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 6),
+                          child: Icon(Icons.edit_outlined,
+                              size: 14,
+                              color:
+                                  AppColors.kiwi400.withValues(alpha: 0.5)),
+                        ),
+                      ],
                     ),
                   ),
                   if (plan.progressPercent > 0) ...[

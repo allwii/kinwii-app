@@ -210,6 +210,12 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
       }
 
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎉 Great week! Review complete. You\'re all set.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
       context.go('/today');
     } catch (_) {
       if (!mounted) return;
@@ -225,8 +231,14 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.content),
-          onPressed: () => context.pop(),
+          icon: Icon(
+            _currentStep > 0 ? Icons.arrow_back_ios_new : Icons.close,
+            color: AppColors.content,
+            size: _currentStep > 0 ? 18 : 24,
+          ),
+          onPressed: _currentStep > 0
+              ? () => _goToStep(_currentStep - 1)
+              : () => context.pop(),
         ),
         title: Text(
           'Weekly review',
@@ -286,7 +298,6 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
                       whatToChangeCtrl: _whatToChangeCtrl,
                       isSubmitting: _isSubmitting,
                       onSubmit: _submitAndLoadAi,
-                      onBack: () => _goToStep(0),
                     ),
 
                     // Step 3: AI Insights + Plan Next Week
@@ -298,7 +309,6 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
                       intentCtrl: _nextIntentCtrl,
                       isCreating: _isCreatingNextWeek,
                       onFinish: _createNextWeek,
-                      onBack: () => _goToStep(1),
                     ),
                   ],
                 ),
@@ -546,14 +556,12 @@ class _ReflectStep extends StatelessWidget {
     required this.whatToChangeCtrl,
     required this.isSubmitting,
     required this.onSubmit,
-    required this.onBack,
   });
 
   final TextEditingController whatWorkedCtrl;
   final TextEditingController whatToChangeCtrl;
   final bool isSubmitting;
   final VoidCallback onSubmit;
-  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -611,19 +619,9 @@ class _ReflectStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
-          Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: OutlinedButton(
-                  onPressed: onBack,
-                  child: const Text('Back'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
                   onPressed: isSubmitting ? null : onSubmit,
                   child: isSubmitting
                       ? const SizedBox(
@@ -635,9 +633,7 @@ class _ReflectStep extends StatelessWidget {
                           ),
                         )
                       : const Text('Get insights'),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -658,7 +654,6 @@ class _InsightsAndPlanStep extends StatelessWidget {
     required this.intentCtrl,
     required this.isCreating,
     required this.onFinish,
-    required this.onBack,
   });
 
   final bool isLoadingAi;
@@ -668,7 +663,6 @@ class _InsightsAndPlanStep extends StatelessWidget {
   final TextEditingController intentCtrl;
   final bool isCreating;
   final VoidCallback onFinish;
-  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -818,19 +812,9 @@ class _InsightsAndPlanStep extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  flex: 1,
-                  child: OutlinedButton(
-                    onPressed: onBack,
-                    child: const Text('Back'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
                     onPressed: isCreating ? null : onFinish,
                     child: isCreating
                         ? const SizedBox(
@@ -842,9 +826,7 @@ class _InsightsAndPlanStep extends StatelessWidget {
                             ),
                           )
                         : const Text('Finish review'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ],

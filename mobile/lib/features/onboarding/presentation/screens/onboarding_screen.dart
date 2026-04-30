@@ -448,12 +448,12 @@ class _WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 14),
               const _WelcomeBenefit(
                 icon: Icons.trending_up_rounded,
-                text: 'Track progress with smart insights',
+                text: 'Track progress with smart AI insights',
               ),
               const SizedBox(height: 14),
               const _WelcomeBenefit(
                 icon: Icons.auto_awesome_rounded,
-                text: 'Reflect and improve with AI',
+                text: 'Reflect and improve every week',
               ),
 
               const Spacer(flex: 2),
@@ -555,14 +555,14 @@ class _BenefitsScreen extends StatelessWidget {
             icon: Icons.trending_up_rounded,
             title: 'Track your progress',
             description:
-                'See how you\'re doing with smart insights and analytics.',
+                'See how you\'re doing with smart AI insights and analytics.',
           ),
           const SizedBox(height: 12),
           const _BenefitCard(
             icon: Icons.auto_awesome_rounded,
             title: 'Reflect & improve',
             description:
-                'Daily & Weekly reflections powered by AI help you grow consistently.',
+                'Daily & weekly reflections help you learn and grow consistently.',
           ),
           const Spacer(),
           _PrimaryButton(label: 'Continue', onPressed: onContinue),
@@ -1061,7 +1061,21 @@ class _ProUpsellScreen extends StatelessWidget {
                   color: AppColors.contentSecondary,
                 ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'Free plan includes 1 goal, tasks, and weekly reflections.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentTertiary,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 20),
 
           // Benefits card
           Container(
