@@ -1079,10 +1079,19 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     return SizedBox(
       height: screenHeight * 0.6,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + bottomPadding),
+        padding: EdgeInsets.only(
+          bottom: bottomPadding > 0
+              ? bottomPadding
+              : MediaQuery.of(context).padding.bottom,
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Row 1: Goal chip
             Row(
               children: [
@@ -1277,25 +1286,16 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                   style: const TextStyle(color: Colors.red, fontSize: 13)),
             ],
 
-            const Spacer(),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Add task'),
+                ],
               ),
             ),
-          ],
+          ),
+          _AddTaskToolbar(
+            onSubmit: _loading ? null : _submit,
+            onDismiss: () => FocusScope.of(context).unfocus(),
+            isLoading: _loading,
+          ),
+        ],
         ),
       ),
     );
@@ -1371,6 +1371,69 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 // ---------------------------------------------------------------------------
 // Daily reflection entry card → opens wizard
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Keyboard toolbar for add task sheet
+// ---------------------------------------------------------------------------
+
+class _AddTaskToolbar extends StatelessWidget {
+  const _AddTaskToolbar({
+    required this.onSubmit,
+    required this.onDismiss,
+    this.isLoading = false,
+  });
+
+  final VoidCallback? onSubmit;
+  final VoidCallback onDismiss;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        border: Border(
+          top: BorderSide(color: AppColors.borderSubtle, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.keyboard_hide_outlined,
+                  size: 22, color: AppColors.contentSecondary),
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: onSubmit,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: onSubmit != null
+                    ? AppColors.kiwi400
+                    : AppColors.borderSubtle,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check, size: 20, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Daily tip card — one tip per day, dismissible, persisted in Hive

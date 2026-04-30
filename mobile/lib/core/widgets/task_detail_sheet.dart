@@ -44,7 +44,6 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
   TimeOfDay? _endTime;
   bool _saving = false;
   bool _dirty = false;
-  bool _descFullView = false;
 
   /// Resolve the goal name from the current `_selectedGoalId` against the
   /// goals list, falling back to `widget.currentGoalName` for legacy tasks
@@ -209,86 +208,84 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
     final screenHeight = MediaQuery.of(context).size.height;
-
-    if (_descFullView) {
-      return SizedBox(
-        height: screenHeight * 0.92,
-        child: _buildFullView(context, bottomPadding),
-      );
-    }
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return SizedBox(
-      height: screenHeight * 0.6,
-      child: _buildCompactView(context, bottomPadding),
-    );
-  }
-
-  Widget _buildFullView(BuildContext context, double bottomPadding) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + bottomPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTopSection(context),
-          const SizedBox(height: 16),
-          Text(
-            _titleCtrl.text,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: TextField(
-              controller: _descCtrl,
-              autofocus: true,
-              expands: true,
-              maxLines: null,
-              textAlignVertical: TextAlignVertical.top,
-              textCapitalization: TextCapitalization.sentences,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.content,
-                    height: 1.6,
-                  ),
-              decoration: InputDecoration(
-                hintText: 'add details, deliverables, or notes...',
-                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.contentTertiary,
+      height: screenHeight * 0.85,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: bottomInset > 0
+              ? bottomInset
+              : MediaQuery.of(context).padding.bottom,
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTopSection(context),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _titleCtrl,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: AppColors.content,
+                            fontWeight: FontWeight.w600,
+                          ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                        hintText: 'Task title',
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                      ),
+                      maxLines: null,
+                      textCapitalization: TextCapitalization.sentences,
+                      onChanged: (_) => _markDirty(),
                     ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-              ),
-              onChanged: (_) => _markDirty(),
-            ),
-          ),
-          SafeArea(
-            child: Row(
-              children: [
-                const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    setState(() => _descFullView = false);
-                  },
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.all(8),
-                    minimumSize: Size.zero,
-                  ),
-                  child: const Icon(
-                    Icons.check,
-                    color: AppColors.kiwi500,
-                    size: 24,
-                  ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _descCtrl,
+                      maxLines: null,
+                      minLines: 5,
+                      textAlignVertical: TextAlignVertical.top,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.content,
+                            height: 1.6,
+                          ),
+                      decoration: InputDecoration(
+                        hintText: 'add details, deliverables, or notes...',
+                        hintStyle:
+                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppColors.contentTertiary,
+                                ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onChanged: (_) => _markDirty(),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+            // Toolbar — always visible, sits right above keyboard
+            if (_dirty)
+              _KeyboardToolbar(
+                onSave: _saving ? null : _save,
+                onDismiss: () => FocusScope.of(context).unfocus(),
+                isSaving: _saving,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -474,74 +471,6 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
     );
   }
 
-  Widget _buildCompactView(BuildContext context, double bottomPadding) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + bottomPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTopSection(context),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _titleCtrl,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w600,
-                ),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              filled: false,
-              hintText: 'Task title',
-              contentPadding: EdgeInsets.zero,
-              isDense: true,
-            ),
-            maxLines: null,
-            onChanged: (_) => _markDirty(),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _descFullView = true),
-              child: SingleChildScrollView(
-                child: Text(
-                  _descCtrl.text.isNotEmpty
-                      ? _descCtrl.text
-                      : 'add details, deliverables, or notes...',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _descCtrl.text.isNotEmpty
-                            ? AppColors.contentSecondary
-                            : AppColors.contentTertiary,
-                        height: 1.5,
-                      ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_dirty)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Save'),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   void _showGoalPicker() {
     if (widget.goals.isEmpty) return;
     showModalBottomSheet(
@@ -579,6 +508,65 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
                 )),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Toolbar shown above the keyboard with a tick (save) button and
+/// a keyboard-dismiss button. Used in task detail and add task sheets.
+class _KeyboardToolbar extends StatelessWidget {
+  const _KeyboardToolbar({
+    required this.onSave,
+    required this.onDismiss,
+    this.isSaving = false,
+  });
+
+  final VoidCallback? onSave;
+  final VoidCallback onDismiss;
+  final bool isSaving;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        border: Border(
+          top: BorderSide(color: AppColors.borderSubtle, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.keyboard_hide_outlined,
+                  size: 22, color: AppColors.contentSecondary),
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: onSave,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: onSave != null ? AppColors.kiwi400 : AppColors.borderSubtle,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: isSaving
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check, size: 20, color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }
