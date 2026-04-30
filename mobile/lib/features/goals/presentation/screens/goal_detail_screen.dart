@@ -84,7 +84,6 @@ class _GoalDetailViewState extends ConsumerState<_GoalDetailView> {
   late DateTime _endDate;
   bool _saving = false;
   bool _dirty = false;
-  bool _whyFullView = false;
 
   @override
   void initState() {
@@ -200,8 +199,6 @@ class _GoalDetailViewState extends ConsumerState<_GoalDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_whyFullView) return _buildWhyFullView(context);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -308,21 +305,29 @@ class _GoalDetailViewState extends ConsumerState<_GoalDetailView> {
 
             const SizedBox(height: 8),
 
-            // Why (tappable to expand, matches task description pattern)
-            GestureDetector(
-              onTap: () => setState(() => _whyFullView = true),
-              child: Text(
-                _whyCtrl.text.isNotEmpty
-                    ? _whyCtrl.text
-                    : 'Add why this goal matters...',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: _whyCtrl.text.isNotEmpty
-                          ? AppColors.contentSecondary
-                          : AppColors.contentTertiary,
+            // Why (inline editable)
+            TextField(
+              controller: _whyCtrl,
+              maxLines: null,
+              minLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.content,
+                    height: 1.5,
+                  ),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                hintText: 'Add why this goal matters...',
+                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.contentTertiary,
                     ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
               ),
+              onChanged: (_) => _markDirty(),
             ),
 
             const SizedBox(height: 20),
@@ -347,91 +352,84 @@ class _GoalDetailViewState extends ConsumerState<_GoalDetailView> {
                 ),
               ],
             ),
-
-            const SizedBox(height: 24),
-
-            // Save button (only when dirty)
-            if (_dirty)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Save'),
-                ),
-              ),
           ],
         ),
       ),
+      bottomNavigationBar: _dirty
+          ? _GoalToolbar(
+              onSave: _saving ? null : _save,
+              onDismiss: () => FocusScope.of(context).unfocus(),
+              isSaving: _saving,
+            )
+          : null,
     );
   }
 
-  Widget _buildWhyFullView(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.content),
-          onPressed: () {
-            if (_dirty) _save();
-            setState(() => _whyFullView = false);
-          },
+}
+
+// ---------------------------------------------------------------------------
+// Goal toolbar — keyboard-aware save toolbar
+// ---------------------------------------------------------------------------
+
+class _GoalToolbar extends StatelessWidget {
+  const _GoalToolbar({
+    required this.onSave,
+    required this.onDismiss,
+    this.isSaving = false,
+  });
+
+  final VoidCallback? onSave;
+  final VoidCallback onDismiss;
+  final bool isSaving;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        8,
+        6,
+        8,
+        6 + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        border: Border(
+          top: BorderSide(color: AppColors.borderSubtle, width: 0.5),
         ),
-        title: Text(
-          _titleCtrl.text.isNotEmpty ? _titleCtrl.text : 'Goal',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.content,
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.keyboard_hide_outlined,
+                  size: 22, color: AppColors.contentSecondary),
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: onSave,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: onSave != null
+                    ? AppColors.kiwi400
+                    : AppColors.borderSubtle,
+                borderRadius: BorderRadius.circular(8),
               ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.check, color: AppColors.kiwi500),
-            onPressed: () {
-              if (_dirty) _save();
-              setState(() => _whyFullView = false);
-            },
+              child: isSaving
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check, size: 20, color: Colors.white),
+            ),
           ),
         ],
-      ),
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(24, 8, 24, 16 + bottomPadding),
-        child: TextField(
-          controller: _whyCtrl,
-          autofocus: true,
-          expands: true,
-          maxLines: null,
-          textAlignVertical: TextAlignVertical.top,
-          textCapitalization: TextCapitalization.sentences,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.content,
-                height: 1.6,
-              ),
-          decoration: InputDecoration(
-            hintText: 'Why does this goal matter to you?',
-            hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.contentTertiary,
-                ),
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            filled: false,
-            contentPadding: EdgeInsets.zero,
-          ),
-          onChanged: (_) => _markDirty(),
-        ),
       ),
     );
   }
