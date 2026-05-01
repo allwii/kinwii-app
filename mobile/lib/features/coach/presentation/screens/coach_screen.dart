@@ -194,8 +194,11 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Column(
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Column(
         children: [
           // Header — matches Today/Goals style
           Padding(
@@ -237,6 +240,7 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
       ),
           ),
         ],
+      ),
       ),
       ),
     );
@@ -694,12 +698,7 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        8,
-        8,
-        8 + MediaQuery.of(context).padding.bottom,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
