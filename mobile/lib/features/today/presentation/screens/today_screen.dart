@@ -883,7 +883,6 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   bool _loading = false;
-  bool _descFullView = false;
   String? _selectedGoalId;
   String? _selectedGoalName;
   String? _error;
@@ -993,6 +992,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   void _showGoalPicker(List<QuarterlyGoal> goals) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1072,23 +1072,20 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
     final goals = goalsAsync.valueOrNull ?? [];
 
-    // Full-view for description editing
-    if (_descFullView) {
-      return SizedBox(
-        height: screenHeight * 0.92,
-        child: _buildDescFullView(context, bottomPadding),
-      );
-    }
-
-    // Compact view
-    return SizedBox(
-      height: screenHeight * 0.6,
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: bottomPadding > 0
-              ? bottomPadding
-              : MediaQuery.of(context).padding.bottom,
-        ),
+    // Single view — expand when keyboard is open
+    final compactHeight = bottomPadding > 0
+        ? screenHeight * 0.85
+        : screenHeight * 0.6;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      child: SizedBox(
+        height: compactHeight,
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: bottomPadding > 0
+                ? 0
+                : MediaQuery.of(context).padding.bottom,
+          ),
         child: Column(
           children: [
             Expanded(
@@ -1265,37 +1262,27 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
             const SizedBox(height: 16),
 
-            // Description (tappable)
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 60),
-              child: GestureDetector(
-                onTap: () => setState(() => _descFullView = true),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                    _descCtrl.text.isNotEmpty
-                        ? _descCtrl.text
-                        : 'What\u2019s the deliverable? e.g. "Draft v1 of proposal"',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: _descCtrl.text.isNotEmpty
-                              ? AppColors.contentSecondary
-                              : AppColors.contentTertiary,
-                          height: 1.5,
-                        ),
-                      ),
+            // Description (inline TextField, same as task detail)
+            TextField(
+              controller: _descCtrl,
+              maxLines: null,
+              minLines: 3,
+              textAlignVertical: TextAlignVertical.top,
+              textCapitalization: TextCapitalization.sentences,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.content,
+                    height: 1.5,
+                  ),
+              decoration: InputDecoration(
+                hintText: 'What\u2019s the deliverable? e.g. "Draft v1 of proposal"',
+                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.contentTertiary,
                     ),
-                    if (_descCtrl.text.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2, left: 4),
-                        child: Icon(Icons.open_in_full,
-                            size: 12,
-                            color: AppColors.contentTertiary
-                                .withValues(alpha: 0.5)),
-                      ),
-                  ],
-                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
               ),
             ),
 
@@ -1317,73 +1304,10 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         ],
         ),
       ),
-    );
-  }
-
-  Widget _buildDescFullView(BuildContext context, double bottomPadding) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + bottomPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _titleCtrl.text.isNotEmpty
-                      ? _titleCtrl.text
-                      : 'New task',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.content,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              TextButton(
-                onPressed: () => setState(() => _descFullView = false),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.all(8),
-                  minimumSize: Size.zero,
-                ),
-                child: const Icon(
-                  Icons.check,
-                  color: AppColors.kiwi500,
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: TextField(
-              controller: _descCtrl,
-              autofocus: true,
-              expands: true,
-              maxLines: null,
-              textAlignVertical: TextAlignVertical.top,
-              textCapitalization: TextCapitalization.sentences,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.content,
-                    height: 1.6,
-                  ),
-              decoration: InputDecoration(
-                hintText: 'add details, deliverables, or notes...',
-                hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.contentTertiary,
-                    ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
+
 }
 
 

@@ -602,14 +602,19 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    return SizedBox(
-      height: screenHeight * 0.6,
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: bottomPadding > 0
-              ? bottomPadding
-              : MediaQuery.of(context).padding.bottom,
-        ),
+    final sheetHeight = bottomPadding > 0
+        ? screenHeight * 0.85
+        : screenHeight * 0.6;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      child: SizedBox(
+        height: sheetHeight,
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: bottomPadding > 0
+                ? 0
+                : MediaQuery.of(context).padding.bottom,
+          ),
         child: Column(
           children: [
             Expanded(
@@ -795,6 +800,7 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

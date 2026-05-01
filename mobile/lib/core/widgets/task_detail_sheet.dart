@@ -208,17 +208,12 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return SizedBox(
-      height: screenHeight * 0.85,
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: bottomInset > 0
-              ? bottomInset
-              : MediaQuery.of(context).padding.bottom,
-        ),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: bottomInset,
+      ),
         child: Column(
           children: [
             Expanded(
@@ -278,15 +273,13 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
               ),
             ),
             // Toolbar — always visible, sits right above keyboard
-            if (_dirty)
-              _KeyboardToolbar(
-                onSave: _saving ? null : _save,
-                onDismiss: () => FocusScope.of(context).unfocus(),
-                isSaving: _saving,
-              ),
+            _KeyboardToolbar(
+              onSave: _dirty ? (_saving ? null : _save) : null,
+              onDismiss: () => FocusScope.of(context).unfocus(),
+              isSaving: _saving,
+            ),
           ],
         ),
-      ),
     );
   }
 

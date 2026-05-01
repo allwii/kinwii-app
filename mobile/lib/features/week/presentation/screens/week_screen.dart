@@ -272,6 +272,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
   void _showCreateWeekSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -288,6 +289,7 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
   void _showAiSheet(BuildContext context, List<String> suggestions) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

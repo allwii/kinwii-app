@@ -242,6 +242,7 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () {
                     showModalBottomSheet(
                       context: context,
+                      useRootNavigator: true,
                       isScrollControlled: true,
                       backgroundColor: Colors.white,
                       shape: const RoundedRectangleBorder(
@@ -659,6 +660,7 @@ class _FirstDayRow extends ConsumerWidget {
       onTap: () {
         showModalBottomSheet(
           context: context,
+          useRootNavigator: true,
           backgroundColor: Colors.white,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
