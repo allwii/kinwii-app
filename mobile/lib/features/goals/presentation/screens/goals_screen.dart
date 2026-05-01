@@ -1,9 +1,12 @@
 // GoalsScreen - "Where am I heading?"
 // Usage: Registered as /goals route inside AppShell's ShellRoute.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -127,6 +130,14 @@ class GoalsScreen extends ConsumerWidget {
                 ),
               ),
 
+              // Goal-setting tip
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: const _GoalTipCard(),
+                ),
+              ),
+
               // Goal list / empty / error
               goalsAsync.when(
                 loading: () => const SliverFillRemaining(
@@ -222,6 +233,188 @@ class GoalsScreen extends ConsumerWidget {
 // Goal card
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Goal-setting tips (rotating, dismissible per day)
+// ---------------------------------------------------------------------------
+
+const _goalTips = <({String emoji, String title, String body})>[
+  (
+    emoji: '🔍',
+    title: 'Be specific',
+    body: '"Exercise more" is a wish. "Run 3x per week" is a goal you can track.',
+  ),
+  (
+    emoji: '💡',
+    title: 'Know your why',
+    body: 'Goals with emotional meaning are 3x more likely to stick. Why does this matter to you?',
+  ),
+  (
+    emoji: '🎯',
+    title: 'Keep it short',
+    body: 'Focus on 1–3 goals at a time. Too many goals = no real progress on any.',
+  ),
+  (
+    emoji: '⏰',
+    title: 'Set a deadline',
+    body: 'A goal without a deadline is just a dream. Give yourself 4–8 weeks to make it real.',
+  ),
+  (
+    emoji: '🪜',
+    title: 'Break it down',
+    body: 'Big goals feel overwhelming. This week, what\'s one step you can take?',
+  ),
+  (
+    emoji: '📏',
+    title: 'Make it measurable',
+    body: 'If you can\'t measure it, you can\'t improve it. Add a number to your goal.',
+  ),
+  (
+    emoji: '🔗',
+    title: 'Connect to daily actions',
+    body: 'Great goals cascade: Goal → weekly focus → daily tasks. That\'s how progress happens.',
+  ),
+  (
+    emoji: '🔄',
+    title: 'Review weekly',
+    body: 'Goals drift without attention. A 5-min weekly review keeps you aligned.',
+  ),
+  (
+    emoji: '🏃',
+    title: 'Start now, not perfect',
+    body: 'Don\'t wait for the perfect plan. Start with what you have, adjust as you learn.',
+  ),
+  (
+    emoji: '🎉',
+    title: 'Celebrate progress',
+    body: 'Acknowledge every milestone, no matter how small. Progress fuels motivation.',
+  ),
+];
+
+class _GoalTipCard extends StatefulWidget {
+  const _GoalTipCard();
+
+  @override
+  State<_GoalTipCard> createState() => _GoalTipCardState();
+}
+
+class _GoalTipCardState extends State<_GoalTipCard> {
+  bool _dismissed = false;
+  bool _loaded = false;
+  int _tipIndex = 0;
+  late final Timer _timer;
+
+  static String get _todayKey =>
+      'goal_tip_dismissed_${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
+
+  @override
+  void initState() {
+    super.initState();
+    final dayOfYear =
+        DateTime.now().difference(DateTime(DateTime.now().year)).inDays;
+    _tipIndex = dayOfYear % _goalTips.length;
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted && !_dismissed) {
+        setState(() => _tipIndex = (_tipIndex + 1) % _goalTips.length);
+      }
+    });
+    _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadStatus() async {
+    final box = await Hive.openBox('kinwii_flags');
+    final dismissed = box.get(_todayKey, defaultValue: false);
+    if (mounted) {
+      setState(() {
+        _dismissed = dismissed;
+        _loaded = true;
+      });
+    }
+  }
+
+  Future<void> _dismiss() async {
+    _timer.cancel();
+    final box = await Hive.openBox('kinwii_flags');
+    await box.put(_todayKey, true);
+    if (mounted) setState(() => _dismissed = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _dismissed) return const SizedBox.shrink();
+
+    final tip = _goalTips[_tipIndex];
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      child: Container(
+        key: ValueKey(_tipIndex),
+        padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.kiwi50,
+              AppColors.kiwi50.withValues(alpha: 0.5),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(tip.emoji, style: const TextStyle(fontSize: 24)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tip.title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppColors.kiwi700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tip.body,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.kiwi600,
+                          height: 1.4,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: _dismiss,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.close,
+                  size: 16,
+                  color: AppColors.kiwi400.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Goal card
+// ---------------------------------------------------------------------------
+
 class _GoalCard extends StatelessWidget {
   const _GoalCard({required this.goal, required this.onTap});
 
@@ -299,8 +492,6 @@ class _GoalCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     goal.why!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.contentSecondary,
                         ),
@@ -340,24 +531,11 @@ class _CreateGoalSheet extends ConsumerStatefulWidget {
 class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
   final _titleCtrl = TextEditingController();
   final _whyCtrl = TextEditingController();
-  DateTime _startDate = _currentQuarterStart();
-  DateTime _endDate = _currentQuarterEnd();
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 56)); // 8 weeks
   bool _loading = false;
   bool _whyExpanded = false;
   String? _error;
-
-  static DateTime _currentQuarterStart() {
-    final now = DateTime.now();
-    final q = ((now.month - 1) ~/ 3);
-    return DateTime(now.year, q * 3 + 1, 1);
-  }
-
-  static DateTime _currentQuarterEnd() {
-    final start = _currentQuarterStart();
-    final endMonth = start.month + 2;
-    final lastDay = DateTime(start.year, endMonth + 1, 0).day;
-    return DateTime(start.year, endMonth, lastDay);
-  }
 
   @override
   void dispose() {
@@ -426,13 +604,21 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
 
     return SizedBox(
       height: screenHeight * 0.6,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + bottomPadding),
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: bottomPadding > 0
+              ? bottomPadding
+              : MediaQuery.of(context).padding.bottom,
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Dates row (compact, at top like task detail's date/time row)
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+            // Dates row
             Row(
               children: [
                 const Icon(Icons.calendar_today,
@@ -476,12 +662,16 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
                     color: AppColors.content,
                     fontWeight: FontWeight.w600,
                   ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
                 filled: false,
                 hintText: 'What\'s your goal?',
+                hintStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.contentTertiary,
+                      fontWeight: FontWeight.w400,
+                    ),
                 contentPadding: EdgeInsets.zero,
                 isDense: true,
               ),
@@ -519,7 +709,7 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
                       color: AppColors.content,
                     ),
                 decoration: InputDecoration(
-                  hintText: 'e.g. Prove the concept and get first customers',
+                  hintText: 'Make the goal specific & measurable',
                   hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.contentTertiary,
                       ),
@@ -537,22 +727,70 @@ class _CreateGoalSheetState extends ConsumerState<_CreateGoalSheet> {
               Text(_error!,
                   style: const TextStyle(color: Colors.red, fontSize: 13)),
             ],
-
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Create goal'),
+                  ],
+                ),
+              ),
+            ),
+            // Toolbar above keyboard
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, -1),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => FocusScope.of(context).unfocus(),
+                    child: const Icon(Icons.keyboard_hide_outlined,
+                        size: 22, color: AppColors.contentTertiary),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _loading ? null : _submit,
+                    child: _loading
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.kiwi500,
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.kiwi400,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.check,
+                                    size: 16, color: Colors.white),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Create',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelMedium
+                                      ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                ],
               ),
             ),
           ],
