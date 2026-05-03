@@ -269,6 +269,28 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
     if (mounted) setState(() => _editingIntent = false);
   }
 
+  void _showAddTask(
+      BuildContext context, WidgetRef ref, WeeklyPlan? plan) {
+    if (plan == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _WeekAddTaskSheet(
+        planId: plan.id,
+        quarterId: plan.quarterId,
+        date: _selectedDay,
+        onCreated: () => ref.invalidate(_weekTasksProvider(plan.id)),
+      ),
+    );
+  }
+
   void _showCreateWeekSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -576,10 +598,45 @@ class _WeekScreenState extends ConsumerState<WeekScreen> {
                 ),
               ),
 
+              // Selected day header + add button
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 14, 16, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          DateFormat('EEEE').format(_selectedDay),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(color: AppColors.content),
+                        ),
+                      ),
+                      if (planAsync.valueOrNull != null &&
+                          !_selectedDay.isBefore(DateTime(
+                          DateTime.now().year,
+                          DateTime.now().month,
+                          DateTime.now().day)))
+                        IconButton(
+                          onPressed: () => _showAddTask(
+                              context, ref, planAsync.valueOrNull),
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: AppColors.kiwi500,
+                            size: 24,
+                          ),
+                          tooltip: 'Add task',
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
               // Tasks for selected day
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
                   child: planAsync.maybeWhen(
                     data: (plan) => plan != null
                         ? _SelectedDayTasks(
@@ -1084,71 +1141,74 @@ class _SelectedDayTasks extends ConsumerWidget {
                 return a.startTime!.compareTo(b.startTime!);
               });
 
-        if (dayTasks.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'No tasks for this day.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.contentTertiary,
-                  ),
-            ),
-          );
-        }
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: dayTasks.map((task) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: GestureDetector(
-                onTap: () => _showTaskDetail(context, ref, task, planId),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+          children: [
+            if (dayTasks.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                child: Text(
+                  'No tasks yet.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.contentTertiary,
                       ),
-                    ],
-                  ),
-                  child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => _toggleTask(ref, task.id, planId),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(5),
-                          color: task.completed
-                              ? AppColors.kiwi400
-                              : Colors.white,
-                          border: Border.all(
-                            color: task.completed
-                                ? AppColors.kiwi400
-                                : AppColors.borderSubtle,
-                            width: 1.5,
+                ),
+              ),
+            ...dayTasks.map((task) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: GestureDetector(
+                  onTap: () => _showTaskDetail(context, ref, task, planId),
+                  onLongPress: () => _showMoveDayPicker(
+                      context, ref, task, planId),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => _toggleTask(ref, task.id, planId),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(5),
+                              color: task.completed
+                                  ? AppColors.kiwi400
+                                  : Colors.white,
+                              border: Border.all(
+                                color: task.completed
+                                    ? AppColors.kiwi400
+                                    : AppColors.borderSubtle,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: task.completed
+                                ? const Icon(Icons.check,
+                                    size: 12, color: Colors.white)
+                                : null,
                           ),
                         ),
-                        child: task.completed
-                            ? const Icon(Icons.check,
-                                size: 12, color: Colors.white)
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        task.title,
-                        style:
-                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            task.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
                                   color: task.completed
                                       ? AppColors.contentTertiary
                                       : AppColors.content,
@@ -1156,14 +1216,15 @@ class _SelectedDayTasks extends ConsumerWidget {
                                       ? TextDecoration.lineThrough
                                       : null,
                                 ),
-                      ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-                ),
-              ),
-            );
-          }).toList(),
+              );
+            }),
+          ],
         );
       },
     );
@@ -1177,6 +1238,114 @@ class _SelectedDayTasks extends ConsumerWidget {
     } catch (_) {
       // Silent fail
     }
+  }
+
+  void _showMoveDayPicker(
+      BuildContext context, WidgetRef ref, Task task, String planId) {
+    final monday = _startOfWeek(selectedDay);
+    final days = List.generate(7, (i) => monday.add(Duration(days: i)));
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Move to...',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.content,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              task.title,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.contentSecondary,
+                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: days.map((day) {
+                final isCurrentDay = _isSameDay(day, task.date);
+                final isToday = _isSameDay(day, DateTime.now());
+                const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                final dayIndex = day.weekday - 1;
+
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: isCurrentDay
+                        ? null
+                        : () async {
+                            Navigator.of(context).pop();
+                            try {
+                              final api = ref.read(apiServiceProvider);
+                              await api.put('/tasks/${task.id}', data: {
+                                'date': DateFormat('yyyy-MM-dd').format(day),
+                              });
+                              ref.invalidate(_weekTasksProvider(planId));
+                            } catch (_) {}
+                          },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isCurrentDay
+                            ? AppColors.kiwi400
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: isToday && !isCurrentDay
+                            ? Border.all(
+                                color: AppColors.kiwi300, width: 1.5)
+                            : null,
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            dayLabels[dayIndex],
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: isCurrentDay
+                                      ? Colors.white
+                                      : AppColors.contentTertiary,
+                                  fontSize: 10,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${day.day}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: isCurrentDay
+                                      ? Colors.white
+                                      : AppColors.content,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showTaskDetail(
@@ -1473,6 +1642,373 @@ class _CreateWeekSheetState extends ConsumerState<_CreateWeekSheet> {
 
 // ---------------------------------------------------------------------------
 // Day tasks bottom sheet
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Add task sheet for week view (matches Today's add task experience)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Add task sheet for week view
+// ---------------------------------------------------------------------------
+
+class _WeekAddTaskSheet extends ConsumerStatefulWidget {
+  const _WeekAddTaskSheet({
+    required this.planId,
+    required this.quarterId,
+    required this.date,
+    required this.onCreated,
+  });
+
+  final String planId;
+  final String? quarterId;
+  final DateTime date;
+  final VoidCallback onCreated;
+
+  @override
+  ConsumerState<_WeekAddTaskSheet> createState() => _WeekAddTaskSheetState();
+}
+
+class _WeekAddTaskSheetState extends ConsumerState<_WeekAddTaskSheet> {
+  final _titleCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+  bool _loading = false;
+  String? _goalName;
+
+  @override
+  void initState() {
+    super.initState();
+    // Resolve goal name from quarterId
+    if (widget.quarterId != null) {
+      ref.listenManual(_weekGoalsProvider, (_, next) {
+        next.whenData((goals) {
+          final match = goals.where((g) => g.id == widget.quarterId);
+          if (match.isNotEmpty && mounted) {
+            setState(() => _goalName = match.first.title);
+          }
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) return;
+    setState(() => _loading = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      String? startStr;
+      String? endStr;
+      if (_startTime != null) {
+        startStr =
+            '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}:00';
+      }
+      if (_endTime != null) {
+        endStr =
+            '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}:00';
+      }
+      await api.post('/tasks', data: {
+        'weekly_plan_id': widget.planId,
+        'title': title,
+        'date': DateFormat('yyyy-MM-dd').format(widget.date),
+        'energy_type': 'deep',
+        if (_descCtrl.text.trim().isNotEmpty)
+          'description': _descCtrl.text.trim(),
+        if (startStr != null) 'start_time': startStr,
+        if (endStr != null) 'end_time': endStr,
+      });
+      widget.onCreated();
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _formatTimeOfDay(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final p = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $p';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final sheetHeight = bottomInset > 0
+        ? screenHeight * 0.85
+        : screenHeight * 0.6;
+    final dayLabel = DateFormat('EEEE, MMM d').format(widget.date);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SizedBox(
+        height: sheetHeight,
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: bottomInset > 0
+                ? 0
+                : MediaQuery.of(context).padding.bottom,
+          ),
+        child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Goal chip
+                if (_goalName != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.kiwi50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderSubtle),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.flag,
+                              size: 14, color: AppColors.kiwi500),
+                          const SizedBox(width: 4),
+                          ConstrainedBox(
+                            constraints:
+                                const BoxConstraints(maxWidth: 220),
+                            child: Text(
+                              _goalName!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.kiwi600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // Date label
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today,
+                        size: 14, color: AppColors.contentSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      dayLabel,
+                      style:
+                          Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppColors.content,
+                                fontWeight: FontWeight.w500,
+                              ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: _startTime ?? TimeOfDay.now(),
+                          helpText: 'Start time',
+                        );
+                        if (picked != null) {
+                          setState(() => _startTime = picked);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.surfaceAlt,
+                        ),
+                        child: Text(
+                          _startTime != null
+                              ? _formatTimeOfDay(_startTime!)
+                              : 'Start',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: _startTime != null
+                                    ? AppColors.content
+                                    : AppColors.contentTertiary,
+                              ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text('–',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppColors.contentTertiary)),
+                    ),
+                    GestureDetector(
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: _endTime ??
+                              _startTime?.replacing(
+                                      hour:
+                                          (_startTime!.hour + 1) % 24) ??
+                              TimeOfDay.now(),
+                          helpText: 'End time',
+                        );
+                        if (picked != null) {
+                          setState(() => _endTime = picked);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.surfaceAlt,
+                        ),
+                        child: Text(
+                          _endTime != null
+                              ? _formatTimeOfDay(_endTime!)
+                              : 'End',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: _endTime != null
+                                    ? AppColors.content
+                                    : AppColors.contentTertiary,
+                              ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Title
+                TextField(
+                  controller: _titleCtrl,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.content,
+                        fontWeight: FontWeight.w600,
+                      ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    hintText: 'What do you need to focus on?',
+                    hintStyle:
+                        Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppColors.contentTertiary,
+                              fontWeight: FontWeight.w400,
+                            ),
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
+                  ),
+                  maxLines: null,
+                ),
+
+                const SizedBox(height: 12),
+
+                // Description
+                TextField(
+                  controller: _descCtrl,
+                  maxLines: null,
+                  minLines: 2,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.content,
+                        height: 1.5,
+                      ),
+                  decoration: InputDecoration(
+                    hintText:
+                        'What\u2019s the deliverable? e.g. "Draft v1 of proposal"',
+                    hintStyle:
+                        Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.contentTertiary,
+                            ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ),
+          // Toolbar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
+              border: Border(
+                top: BorderSide(color: AppColors.borderSubtle, width: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.keyboard_hide_outlined,
+                        size: 22, color: AppColors.contentSecondary),
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: _loading ? null : _submit,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.kiwi400,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.check,
+                            size: 20, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      ),
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Weekly reflection entry point (shown at bottom of Week screen)
 // ---------------------------------------------------------------------------

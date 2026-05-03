@@ -865,11 +865,13 @@ class _AddTaskSheet extends ConsumerStatefulWidget {
   const _AddTaskSheet({
     required this.notifier,
     this.initialTitle,
+    this.initialDate,
     this.onTaskAdded,
   });
 
   final _TasksNotifier notifier;
   final String? initialTitle;
+  final DateTime? initialDate;
   final VoidCallback? onTaskAdded;
 
   @override
@@ -879,7 +881,7 @@ class _AddTaskSheet extends ConsumerStatefulWidget {
 class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   late final TextEditingController _titleCtrl;
   final _descCtrl = TextEditingController();
-  DateTime _date = DateTime.now();
+  late DateTime _date;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   bool _loading = false;
@@ -917,6 +919,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   void initState() {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.initialTitle ?? '');
+    _date = widget.initialDate ?? DateTime.now();
   }
 
   @override
