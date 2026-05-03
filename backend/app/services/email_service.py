@@ -10,9 +10,7 @@ logger = logging.getLogger(__name__)
 
 resend.api_key = settings.RESEND_API_KEY
 
-# Use Resend's test address during development (sends only to account owner).
-# Replace with your verified domain in production.
-FROM_ADDRESS = "Kinwii <onboarding@resend.dev>"
+FROM_ADDRESS = "Kinwii <kelvin@kinwii.com>"
 
 
 def send_reset_code_email(to_email: str, code: str) -> None:

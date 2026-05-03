@@ -251,6 +251,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       builder: (_) => FeedbackModal(
                         api: ref.read(apiServiceProvider),
+                        userEmail: profileAsync.valueOrNull?.email,
                       ),
                     );
                   },

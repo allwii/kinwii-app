@@ -21,6 +21,7 @@ FEEDBACK_TO = "kelvin@kinwii.com"
 
 class FeedbackRequest(BaseModel):
     message: str
+    email: str | None = None  # Optional contact email from anonymous users
 
 
 class FeedbackResponse(BaseModel):
@@ -32,25 +33,31 @@ async def submit_feedback(
     body: FeedbackRequest,
     current_user: User = Depends(get_current_user),
 ):
+    contact_email = current_user.email or body.email
+    user_label = contact_email or current_user.name or str(current_user.id)[:8]
+    reply_to = [contact_email] if contact_email else []
     try:
         resend.Emails.send(
             {
-                "from": "Kinwii Feedback <onboarding@resend.dev>",
+                "from": "Kinwii <feedback@kinwii.com>",
                 "to": [FEEDBACK_TO],
-                "subject": f"Kinwii Feedback from {current_user.email}",
+                **({"reply_to": reply_to} if reply_to else {}),
+                "subject": f"Kinwii Feedback from {user_label}",
                 "html": f"""
                     <div style="font-family: -apple-system, sans-serif; max-width: 500px; padding: 24px;">
-                        <h3>Feedback from {current_user.email}</h3>
+                        <h3>Feedback from {user_label}</h3>
                         <p style="white-space: pre-wrap; line-height: 1.6;">{body.message}</p>
                         <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 16px 0;">
                         <p style="color: #9CA3AF; font-size: 12px;">
                             User ID: {current_user.id}<br>
-                            Name: {current_user.name or 'Not set'}
+                            Name: {current_user.name or 'Not set'}<br>
+                            Email: {contact_email or 'Not provided'}
                         </p>
                     </div>
                 """,
             }
         )
+        logger.info("Feedback email sent from user %s", current_user.id)
     except Exception as e:
         logger.error("Failed to send feedback email: %s", e)
 
