@@ -31,6 +31,7 @@ void main() async {
   final notifications = LocalNotificationService();
   await notifications.init();
   await notifications.requestPermissions();
+  await notifications.scheduleDefaults();
   runApp(ProviderScope(
     overrides: [
       cacheServiceProvider.overrideWithValue(cache),

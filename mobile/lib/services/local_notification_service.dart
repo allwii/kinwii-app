@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -18,6 +20,24 @@ class LocalNotificationService {
   Future<void> init() async {
     tz.initializeTimeZones();
 
+    // Set local timezone for correct scheduling
+    try {
+      if (Platform.isIOS || Platform.isMacOS) {
+        // On iOS, use the device's current timezone offset to find the right tz
+        final now = DateTime.now();
+        final offset = now.timeZoneOffset;
+        // Find a timezone matching the current offset
+        for (final loc in tz.timeZoneDatabase.locations.values) {
+          if (loc.currentTimeZone.offset == offset.inMilliseconds) {
+            tz.setLocalLocation(loc);
+            break;
+          }
+        }
+      }
+    } catch (_) {
+      // Fall back to UTC if timezone detection fails
+    }
+
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -31,6 +51,19 @@ class LocalNotificationService {
         iOS: iosSettings,
       ),
     );
+  }
+
+  /// Schedule all default notifications. Call on app start to ensure
+  /// reminders are active even if the user never visits Settings.
+  Future<void> scheduleDefaults() async {
+    // Check if any notifications are already pending
+    final pending = await _plugin.pendingNotificationRequests();
+    if (pending.isNotEmpty) return; // Already scheduled
+
+    // Schedule defaults: weekday 9am planning, 5:30pm reflection, Monday 9:15am review
+    await scheduleDailyPlanningReminder(const TimeOfDay(hour: 9, minute: 0));
+    await scheduleDailyReflectionReminder(const TimeOfDay(hour: 17, minute: 30));
+    await scheduleWeeklyReflectionReminder(const TimeOfDay(hour: 9, minute: 15));
   }
 
   Future<void> requestPermissions() async {
