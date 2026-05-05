@@ -7,6 +7,7 @@ class ReminderRow extends StatelessWidget {
     super.key,
     required this.label,
     required this.sublabel,
+    this.onSublabelTap,
     required this.time,
     required this.enabled,
     required this.onToggle,
@@ -15,6 +16,7 @@ class ReminderRow extends StatelessWidget {
 
   final String label;
   final String sublabel;
+  final VoidCallback? onSublabelTap;
   final TimeOfDay time;
   final bool enabled;
   final ValueChanged<bool> onToggle;
@@ -43,11 +45,27 @@ class ReminderRow extends StatelessWidget {
                         color: AppColors.content,
                       ),
                 ),
-                Text(
-                  sublabel,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.contentTertiary,
+                GestureDetector(
+                  onTap: onSublabelTap,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        sublabel,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: onSublabelTap != null
+                                  ? AppColors.kiwi600
+                                  : AppColors.contentTertiary,
+                            ),
                       ),
+                      if (onSublabelTap != null) ...[
+                        const SizedBox(width: 2),
+                        Icon(Icons.unfold_more,
+                            size: 14,
+                            color: AppColors.kiwi600),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),

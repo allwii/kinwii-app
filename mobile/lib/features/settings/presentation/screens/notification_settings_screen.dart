@@ -9,6 +9,41 @@ import '../widgets/reminder_row.dart';
 class NotificationSettingsScreen extends ConsumerWidget {
   const NotificationSettingsScreen({super.key});
 
+  void _showDayPicker(
+      BuildContext context, WidgetRef ref, ReminderSettings settings) {
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Weekly review day',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            ...ReminderSettings.dayLabels.entries.map((e) => ListTile(
+                  title: Text(e.value),
+                  trailing: e.key == settings.weeklyReflectionDay
+                      ? const Icon(Icons.check, color: AppColors.kiwi500)
+                      : null,
+                  onTap: () {
+                    _updateAndSchedule(ref,
+                        settings.copyWith(weeklyReflectionDay: e.key));
+                    Navigator.of(context).pop();
+                  },
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _updateAndSchedule(
       WidgetRef ref, ReminderSettings settings) {
     ref.read(reminderSettingsProvider.notifier).update(settings);
@@ -24,7 +59,10 @@ class NotificationSettingsScreen extends ConsumerWidget {
       ns.cancelDailyReflection();
     }
     if (settings.weeklyReflectionEnabled) {
-      ns.scheduleWeeklyReflectionReminder(settings.weeklyReflectionTime);
+      ns.scheduleWeeklyReflectionReminder(
+        settings.weeklyReflectionTime,
+        weekday: settings.weeklyReflectionDay,
+      );
     } else {
       ns.cancelWeeklyReflection();
     }
@@ -103,7 +141,10 @@ class NotificationSettingsScreen extends ConsumerWidget {
                 ),
                 ReminderRow(
                   label: 'Weekly review',
-                  sublabel: 'Monday',
+                  sublabel: settings.weeklyReflectionDayLabel,
+                  onSublabelTap: settings.weeklyReflectionEnabled
+                      ? () => _showDayPicker(context, ref, settings)
+                      : null,
                   time: settings.weeklyReflectionTime,
                   enabled: settings.weeklyReflectionEnabled,
                   onToggle: (v) => _updateAndSchedule(

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 class LocalNotificationService {
   final _plugin = FlutterLocalNotificationsPlugin();
+
+  /// Set this before calling [init] so notification taps can navigate.
+  static GlobalKey<NavigatorState>? navigatorKey;
 
   static const _channelId = 'kinwii_reminders';
   static const _channelName = 'Kinwii Reminders';
@@ -16,6 +20,10 @@ class LocalNotificationService {
   static const _dailyPlanningBaseId = 100;
   static const _dailyReflectionBaseId = 200;
   static const _weeklyReflectionId = 300;
+
+  // Payloads used to route on tap
+  static const _payloadToday = 'today';
+  static const _payloadWeek = 'week';
 
   Future<void> init() async {
     tz.initializeTimeZones();
@@ -40,7 +48,56 @@ class LocalNotificationService {
         android: androidSettings,
         iOS: iosSettings,
       ),
+      onDidReceiveNotificationResponse: _onNotificationTap,
     );
+
+    // Handle notification that launched the app (cold start)
+    try {
+      final launchDetails =
+          await _plugin.getNotificationAppLaunchDetails();
+      if (launchDetails?.didNotificationLaunchApp == true &&
+          launchDetails!.notificationResponse != null) {
+        _pendingRoute = _routeForPayload(
+            launchDetails.notificationResponse!.payload);
+      }
+    } catch (_) {
+      // Don't block app startup if launch details fail
+    }
+  }
+
+  /// Route queued from a cold-start notification tap.
+  /// Read once after router is ready, then cleared.
+  static String? _pendingRoute;
+
+  /// Call from the app after the router is built to handle cold-start
+  /// notification navigation.
+  static void handlePendingNotification() {
+    final route = _pendingRoute;
+    _pendingRoute = null;
+    if (route == null) return;
+    _navigateTo(route);
+  }
+
+  static String _routeForPayload(String? payload) {
+    return switch (payload) {
+      _payloadToday => '/today',
+      _payloadWeek => '/week',
+      _ => '/today',
+    };
+  }
+
+  static void _navigateTo(String route) {
+    try {
+      final context = navigatorKey?.currentContext;
+      if (context == null) return;
+      GoRouter.of(context).go(route);
+    } catch (_) {
+      // Router not ready yet — ignore
+    }
+  }
+
+  static void _onNotificationTap(NotificationResponse response) {
+    _navigateTo(_routeForPayload(response.payload));
   }
 
   /// Schedule all default notifications. Call on app start to ensure
@@ -80,10 +137,13 @@ class LocalNotificationService {
       ));
     }
     if (wrEnabled) {
-      await scheduleWeeklyReflectionReminder(TimeOfDay(
-        hour: settings.get('wr_hour', defaultValue: 9) as int,
-        minute: settings.get('wr_min', defaultValue: 15) as int,
-      ));
+      await scheduleWeeklyReflectionReminder(
+        TimeOfDay(
+          hour: settings.get('wr_hour', defaultValue: 9) as int,
+          minute: settings.get('wr_min', defaultValue: 15) as int,
+        ),
+        weekday: settings.get('wr_day', defaultValue: DateTime.monday) as int,
+      );
     }
   }
 
@@ -114,6 +174,7 @@ class LocalNotificationService {
     required TimeOfDay time,
     required String title,
     required String body,
+    String? payload,
   }) async {
     for (var day = DateTime.monday; day <= DateTime.friday; day++) {
       await _plugin.zonedSchedule(
@@ -124,24 +185,28 @@ class LocalNotificationService {
         notificationDetails: _details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+        payload: payload,
       );
     }
   }
 
-  Future<void> _scheduleMonday({
+  Future<void> _scheduleSingleDay({
     required int id,
+    required int weekday,
     required TimeOfDay time,
     required String title,
     required String body,
+    String? payload,
   }) async {
     await _plugin.zonedSchedule(
       id: id,
       title: title,
       body: body,
-      scheduledDate: _nextInstanceOfDayTime(DateTime.monday, time),
+      scheduledDate: _nextInstanceOfDayTime(weekday, time),
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+      payload: payload,
     );
   }
 
@@ -167,6 +232,7 @@ class LocalNotificationService {
       time: time,
       title: 'Plan your day',
       body: 'Take a moment to set your focus for today.',
+      payload: _payloadToday,
     );
   }
 
@@ -177,16 +243,22 @@ class LocalNotificationService {
       time: time,
       title: 'Time to reflect',
       body: 'How did today go? Review your tasks.',
+      payload: _payloadToday,
     );
   }
 
-  Future<void> scheduleWeeklyReflectionReminder(TimeOfDay time) async {
+  Future<void> scheduleWeeklyReflectionReminder(
+    TimeOfDay time, {
+    int weekday = DateTime.monday,
+  }) async {
     await _plugin.cancel(id: _weeklyReflectionId);
-    await _scheduleMonday(
+    await _scheduleSingleDay(
       id: _weeklyReflectionId,
+      weekday: weekday,
       time: time,
       title: 'Weekly review',
       body: 'Reflect on your week and plan ahead.',
+      payload: _payloadWeek,
     );
   }
 

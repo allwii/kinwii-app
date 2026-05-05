@@ -8,6 +8,8 @@ import 'router/app_router.dart';
 import 'services/cache_service.dart';
 import 'services/local_notification_service.dart';
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final cacheServiceProvider = Provider<CacheService>((ref) => CacheService());
 final localNotificationProvider =
     Provider<LocalNotificationService>((ref) => LocalNotificationService());
@@ -29,6 +31,7 @@ void main() async {
   final cache = CacheService();
   await cache.init();
   final notifications = LocalNotificationService();
+  LocalNotificationService.navigatorKey = rootNavigatorKey;
   await notifications.init();
   await notifications.requestPermissions();
   await notifications.scheduleDefaults();
@@ -47,6 +50,11 @@ class KinwiiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+
+    // Handle cold-start notification tap after router is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      LocalNotificationService.handlePendingNotification();
+    });
 
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),

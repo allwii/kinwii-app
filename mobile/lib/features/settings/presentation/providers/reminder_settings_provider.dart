@@ -9,6 +9,17 @@ class ReminderSettings {
   final TimeOfDay dailyReflectionTime;
   final bool weeklyReflectionEnabled;
   final TimeOfDay weeklyReflectionTime;
+  final int weeklyReflectionDay; // DateTime.monday (1) – DateTime.sunday (7)
+
+  static const dayLabels = {
+    DateTime.monday: 'Monday',
+    DateTime.tuesday: 'Tuesday',
+    DateTime.wednesday: 'Wednesday',
+    DateTime.thursday: 'Thursday',
+    DateTime.friday: 'Friday',
+    DateTime.saturday: 'Saturday',
+    DateTime.sunday: 'Sunday',
+  };
 
   const ReminderSettings({
     this.dailyPlanningEnabled = true,
@@ -17,7 +28,11 @@ class ReminderSettings {
     this.dailyReflectionTime = const TimeOfDay(hour: 17, minute: 30),
     this.weeklyReflectionEnabled = true,
     this.weeklyReflectionTime = const TimeOfDay(hour: 9, minute: 15),
+    this.weeklyReflectionDay = DateTime.monday,
   });
+
+  String get weeklyReflectionDayLabel =>
+      dayLabels[weeklyReflectionDay] ?? 'Monday';
 
   ReminderSettings copyWith({
     bool? dailyPlanningEnabled,
@@ -26,6 +41,7 @@ class ReminderSettings {
     TimeOfDay? dailyReflectionTime,
     bool? weeklyReflectionEnabled,
     TimeOfDay? weeklyReflectionTime,
+    int? weeklyReflectionDay,
   }) =>
       ReminderSettings(
         dailyPlanningEnabled:
@@ -39,6 +55,8 @@ class ReminderSettings {
             weeklyReflectionEnabled ?? this.weeklyReflectionEnabled,
         weeklyReflectionTime:
             weeklyReflectionTime ?? this.weeklyReflectionTime,
+        weeklyReflectionDay:
+            weeklyReflectionDay ?? this.weeklyReflectionDay,
       );
 }
 
@@ -72,6 +90,8 @@ class ReminderSettingsNotifier extends StateNotifier<ReminderSettings> {
         hour: box.get('wr_hour', defaultValue: 9),
         minute: box.get('wr_min', defaultValue: 15),
       ),
+      weeklyReflectionDay:
+          box.get('wr_day', defaultValue: DateTime.monday) as int,
     );
   }
 
@@ -87,5 +107,6 @@ class ReminderSettingsNotifier extends StateNotifier<ReminderSettings> {
     await box.put('wr_enabled', settings.weeklyReflectionEnabled);
     await box.put('wr_hour', settings.weeklyReflectionTime.hour);
     await box.put('wr_min', settings.weeklyReflectionTime.minute);
+    await box.put('wr_day', settings.weeklyReflectionDay);
   }
 }

@@ -1622,7 +1622,7 @@ class _DailyReflectionCardState extends State<_DailyReflectionCard> {
   }
 
   Future<void> _openWizard() async {
-    await showModalBottomSheet(
+    final completed = await showModalBottomSheet<bool>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -1633,16 +1633,18 @@ class _DailyReflectionCardState extends State<_DailyReflectionCard> {
       ),
       builder: (_) => _DailyReflectionWizard(tasks: widget.tasks),
     );
-    // Wizard was dismissed — persist completion for today
-    await _markComplete();
-    ReviewService.recordCompletion();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✨ Nice work! Daily reflection complete.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    // Only mark complete if the user finished all steps
+    if (completed == true) {
+      await _markComplete();
+      ReviewService.recordCompletion();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✨ Nice work! Daily reflection complete.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -1816,7 +1818,7 @@ class _DailyReflectionWizardState
       }
     }
 
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   @override

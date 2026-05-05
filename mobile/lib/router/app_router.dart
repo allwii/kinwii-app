@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../main.dart' show rootNavigatorKey;
 import '../services/providers.dart';
 import '../core/widgets/recover_account_sheet.dart';
 import '../features/goals/presentation/screens/goal_detail_screen.dart';
@@ -22,6 +23,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final authService = ref.read(authServiceProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/onboarding',
     redirect: (context, state) async {
       try {
