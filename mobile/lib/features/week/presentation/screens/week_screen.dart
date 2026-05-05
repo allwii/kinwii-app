@@ -15,6 +15,7 @@ import '../../../../models/quarterly_goal.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../services/providers.dart';
+import '../../../../services/review_service.dart';
 import '../../../../features/settings/presentation/screens/settings_screen.dart';
 
 // ---------------------------------------------------------------------------
@@ -1234,6 +1235,7 @@ class _SelectedDayTasks extends ConsumerWidget {
     try {
       final api = ref.read(apiServiceProvider);
       await api.patch('/tasks/$taskId/complete');
+      ReviewService.recordCompletion();
       ref.invalidate(_weekTasksProvider(planId));
     } catch (_) {
       // Silent fail
@@ -1726,6 +1728,7 @@ class _WeekAddTaskSheetState extends ConsumerState<_WeekAddTaskSheet> {
         if (endStr != null) 'end_time': endStr,
       });
       widget.onCreated();
+      ReviewService.recordMinorAction();
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _loading = false);

@@ -13,6 +13,7 @@ import '../../../../core/widgets/ai_consent_dialog.dart';
 import '../../../../models/coach_briefing.dart';
 import '../../../../models/coach_message.dart';
 import '../../../../services/providers.dart';
+import '../../../../services/review_service.dart';
 import '../../../../services/subscription_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -114,6 +115,7 @@ class _MessagesNotifier extends StateNotifier<_ChatState> {
         ],
         isSending: false,
       );
+      ReviewService.recordMinorAction();
     } catch (_) {
       if (!mounted) return;
       state = state.copyWith(isSending: false);

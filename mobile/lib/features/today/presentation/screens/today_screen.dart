@@ -17,6 +17,7 @@ import '../../../../models/quarterly_goal.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../services/providers.dart';
+import '../../../../services/review_service.dart';
 import '../../../../main.dart';
 
 // ---------------------------------------------------------------------------
@@ -126,9 +127,12 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
 
     final idx = current.indexWhere((t) => t.id == taskId);
     if (idx == -1) return;
-    final updated = current[idx].copyWith(completed: !current[idx].completed);
+    final wasCompleted = current[idx].completed;
+    final updated = current[idx].copyWith(completed: !wasCompleted);
     final optimistic = List<Task>.from(current)..[idx] = updated;
     state = AsyncValue.data(optimistic);
+
+    if (!wasCompleted) ReviewService.recordCompletion();
 
     try {
       final api = _ref.read(apiServiceProvider);
@@ -171,6 +175,7 @@ class _TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
         state = AsyncValue.data(_sorted([...current, newTask]));
       }
       _invalidateCache();
+      ReviewService.recordMinorAction();
     } catch (_) {
       rethrow;
     }
@@ -1630,6 +1635,7 @@ class _DailyReflectionCardState extends State<_DailyReflectionCard> {
     );
     // Wizard was dismissed — persist completion for today
     await _markComplete();
+    ReviewService.recordCompletion();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -12,6 +12,7 @@ import '../../../../core/widgets/kinwii_card.dart';
 import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../services/providers.dart';
+import '../../../../services/review_service.dart';
 
 class WeeklyReviewScreen extends ConsumerStatefulWidget {
   const WeeklyReviewScreen({super.key, required this.weeklyPlanId});
@@ -210,6 +211,7 @@ class _WeeklyReviewScreenState extends ConsumerState<WeeklyReviewScreen> {
       }
 
       if (!mounted) return;
+      ReviewService.recordCompletion();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('🎉 Great week! Review complete. You\'re all set.'),
