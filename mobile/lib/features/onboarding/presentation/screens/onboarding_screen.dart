@@ -108,12 +108,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final auth = ref.read(authServiceProvider);
       final api = ref.read(apiServiceProvider);
 
-      // Silently create anonymous account
-      final deviceId = await auth.getOrCreateDeviceId();
-      final response = await api.post('/auth/register-device', data: {
-        'device_id': deviceId,
-      });
-      await auth.setToken(response.data['access_token']);
+      // Only create anonymous account if user doesn't already have one
+      final isLoggedIn = await auth.isLoggedIn();
+      if (!isLoggedIn) {
+        final deviceId = await auth.getOrCreateDeviceId();
+        final response = await api.post('/auth/register-device', data: {
+          'device_id': deviceId,
+        });
+        await auth.setToken(response.data['access_token']);
+      }
 
       // Submit onboarding goal data
       await _submitGoalData(api);
@@ -176,7 +179,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           // 1. Welcome — full-bleed, no chrome
           _WelcomeScreen(
             onGetStarted: _next,
-            onRecover: () => context.push('/sign-in'),
+            onRecover: () async {
+              final result = await context.push<String>('/sign-in');
+              if (result == 'created' && mounted) {
+                // New account created — continue onboarding from Benefits
+                _goToPage(1);
+              }
+              // If result is null (sign-in succeeded), router redirect
+              // handles navigation to /today
+            },
           ),
           // 2–7: wrapped with shared chrome (progress bar + back button)
           _OnboardingShell(
@@ -1124,7 +1135,7 @@ class _ProUpsellScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Center(
             child: Text(
-              'Free for 3 days. No commitment.',
+              'Free for 5 days. No commitment.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.contentTertiary,
                   ),

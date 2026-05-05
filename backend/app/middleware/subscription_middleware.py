@@ -6,7 +6,7 @@ from app.middleware.auth_middleware import get_current_user
 from app.models.user import SubscriptionTier, User
 
 # Free trial duration — all features, then hard paywall.
-TRIAL_DAYS = 3
+TRIAL_DAYS = 5
 
 
 def _is_pro(user: User) -> bool:

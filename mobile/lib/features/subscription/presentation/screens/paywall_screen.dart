@@ -384,7 +384,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                         : Text(
                             sub.isTrial
                                 ? 'Subscribe now'
-                                : 'Start 3-day free trial',
+                                : 'Start 5-day free trial',
                           ),
                   ),
                 ),

@@ -46,7 +46,7 @@ _GOOGLE_CLIENT_IDS = set(
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-TRIAL_DAYS = 3
+TRIAL_DAYS = 5
 
 
 def _normalize_email(email: str) -> str:

@@ -1,7 +1,7 @@
-// CreateAccountScreen — combined create account / sign in page.
-// Default mode: create account (link email + password).
-// Toggle: "Already have an account? Sign in" switches to sign-in mode.
-// If email already exists on create, prompts user to sign in instead.
+// SignInScreen — combined sign in / create account page.
+// Default mode: sign in (email + password).
+// Toggle: "Don't have an account? Create one" switches to create mode.
+// Create account uses /auth/register (standalone, no anonymous account needed).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,7 +23,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
-  bool _isSignIn = false; // false = create account, true = sign in
+  bool _isSignIn = true; // true = sign in (default), false = create account
   bool _obscurePassword = true;
   String? _error;
 
@@ -61,14 +61,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Future<void> _doCreateAccount(String email, String password) async {
     try {
       final api = ref.read(apiServiceProvider);
-      final name = _nameCtrl.text.trim();
-      await api.post('/auth/link-email', data: {
+      final auth = ref.read(authServiceProvider);
+      final resp = await api.post('/auth/register', data: {
         'email': email,
         'password': password,
-        if (name.isNotEmpty) 'name': name,
       });
+      await auth.setToken(resp.data['access_token']);
+
+      // Update name if provided
+      final name = _nameCtrl.text.trim();
+      if (name.isNotEmpty) {
+        try {
+          await api.put('/auth/me', data: {'name': name});
+        } catch (_) {}
+      }
+
       await ref.read(subscriptionProvider.notifier).refresh();
-      if (mounted) context.pop();
+      await ref.read(subscriptionProvider.notifier).identifyUser();
+      // Pop back with 'created' so onboarding can continue the wizard
+      if (mounted) context.pop('created');
     } catch (e) {
       if (mounted) {
         // Check if it's a 409 (email already exists)
