@@ -1,8 +1,6 @@
 // PrivacyScreen — Privacy promises, data export, device permissions.
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
 import '../../../../core/theme/app_colors.dart';
 
 class PrivacyScreen extends StatelessWidget {
@@ -105,128 +103,8 @@ class PrivacyScreen extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 28),
 
-          // --- Export your data ---
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.upload_outlined,
-                        size: 22, color: AppColors.contentSecondary),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Export Your Data',
-                      style:
-                          Theme.of(context).textTheme.titleSmall?.copyWith(
-                                color: AppColors.content,
-                                fontWeight: FontWeight.w600,
-                              ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'You can download and export your data at any time. This includes all your goals, tasks, and reflections.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.contentSecondary,
-                        height: 1.5,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Data export coming soon.')),
-                      );
-                    },
-                    child: const Text('Export'),
-                  ),
-                ),
-              ],
-            ),
-          ),
 
-          const SizedBox(height: 28),
-
-          // --- Device permissions ---
-          Text(
-            'Device Permissions',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.content,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => context.push('/notifications'),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
-                    const Icon(Icons.notifications_outlined,
-                        size: 20, color: AppColors.contentSecondary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Notifications',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: AppColors.content),
-                          ),
-                          Text(
-                            'Used to remind you of your tasks',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                    color: AppColors.contentTertiary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right,
-                        size: 20, color: AppColors.contentTertiary),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

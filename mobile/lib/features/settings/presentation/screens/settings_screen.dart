@@ -1,10 +1,14 @@
 // SettingsScreen — Production-quality settings with Pro banner, profile,
 // grouped sections with icons.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../services/providers.dart';
@@ -260,6 +264,40 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.shield_outlined,
                   label: 'Privacy & Permissions',
                   onTap: () => context.push('/privacy'),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // --- Stay in touch ---
+            const _SectionLabel(label: 'STAY IN TOUCH'),
+            const SizedBox(height: 10),
+            _SettingsCard(
+              children: [
+                _SettingsRow(
+                  icon: Icons.star_outline_rounded,
+                  label: 'Rate App',
+                  onTap: () {
+                    final uri = Platform.isIOS
+                        ? Uri.parse(
+                            'https://apps.apple.com/app/id6744227498?action=write-review')
+                        : Uri.parse(
+                            'https://play.google.com/store/apps/details?id=com.allvii.kinwii');
+                    launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                ),
+                _SettingsRow(
+                  icon: Icons.ios_share_outlined,
+                  label: 'Share App',
+                  onTap: () {
+                    SharePlus.instance.share(
+                      ShareParams(
+                        text:
+                            'Check out Kinwii — a calm, AI-powered planner that helps you focus on what matters.\nhttps://apps.apple.com/app/id6744227498',
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

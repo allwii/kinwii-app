@@ -8,6 +8,7 @@ class AuthService {
   static const _onboardingKey = 'onboarding_complete';
   static const _onboardingSeenKey = 'onboarding_seen';
   static const _pendingOnboardingKey = 'pending_onboarding';
+  static const _aiConsentKey = 'ai_data_consent';
   final _storage = const FlutterSecureStorage();
 
   Future<String?> getToken() => _storage.read(key: _tokenKey);
@@ -74,6 +75,18 @@ class AuthService {
 
   Future<void> clearPendingOnboarding() =>
       _storage.delete(key: _pendingOnboardingKey);
+
+  Future<bool> hasAiConsent() async {
+    try {
+      final value = await _storage.read(key: _aiConsentKey);
+      return value == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setAiConsent() =>
+      _storage.write(key: _aiConsentKey, value: 'true');
 
   Future<void> logout() async {
     // Keep device_id so re-registration gets the same user

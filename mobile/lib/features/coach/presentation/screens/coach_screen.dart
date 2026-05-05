@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/ai_consent_dialog.dart';
 import '../../../../models/coach_briefing.dart';
 import '../../../../models/coach_message.dart';
 import '../../../../services/providers.dart';
@@ -134,6 +135,36 @@ class CoachScreen extends ConsumerStatefulWidget {
 class _CoachScreenState extends ConsumerState<CoachScreen> {
   final _inputCtrl = TextEditingController();
   final _scrollController = ScrollController();
+  bool _consentChecked = false;
+  bool _consentGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAiConsent();
+  }
+
+  Future<void> _checkAiConsent() async {
+    final auth = ref.read(authServiceProvider);
+    final hasConsent = await auth.hasAiConsent();
+    if (hasConsent) {
+      if (mounted) setState(() {
+        _consentChecked = true;
+        _consentGranted = true;
+      });
+      return;
+    }
+    // Show consent dialog
+    if (!mounted) return;
+    final agreed = await showAiConsentDialog(context);
+    if (agreed) {
+      await auth.setAiConsent();
+    }
+    if (mounted) setState(() {
+      _consentChecked = true;
+      _consentGranted = agreed;
+    });
+  }
 
   @override
   void dispose() {
@@ -190,6 +221,60 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
 
     if (chatState.messages.isNotEmpty) {
       _scrollToBottom();
+    }
+
+    // Show nothing while checking consent
+    if (!_consentChecked) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.kiwi400),
+        ),
+      );
+    }
+
+    // If user declined AI consent, show explanation
+    if (!_consentGranted) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.auto_awesome,
+                      size: 48, color: AppColors.contentTertiary),
+                  const SizedBox(height: 16),
+                  Text(
+                    'AI features require data consent',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppColors.content,
+                          fontWeight: FontWeight.w600,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'To use the AI Coach, Kinwii needs your permission to send goal and task data to our AI provider.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.contentSecondary,
+                          height: 1.5,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _checkAiConsent,
+                    child: const Text('Review & Agree'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
     }
 
     return Scaffold(
