@@ -1,7 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -20,20 +20,10 @@ class LocalNotificationService {
   Future<void> init() async {
     tz.initializeTimeZones();
 
-    // Set local timezone for correct scheduling
+    // Set local timezone using the native platform API
     try {
-      if (Platform.isIOS || Platform.isMacOS) {
-        // On iOS, use the device's current timezone offset to find the right tz
-        final now = DateTime.now();
-        final offset = now.timeZoneOffset;
-        // Find a timezone matching the current offset
-        for (final loc in tz.timeZoneDatabase.locations.values) {
-          if (loc.currentTimeZone.offset == offset.inMilliseconds) {
-            tz.setLocalLocation(loc);
-            break;
-          }
-        }
-      }
+      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
     } catch (_) {
       // Fall back to UTC if timezone detection fails
     }
@@ -56,14 +46,45 @@ class LocalNotificationService {
   /// Schedule all default notifications. Call on app start to ensure
   /// reminders are active even if the user never visits Settings.
   Future<void> scheduleDefaults() async {
-    // Check if any notifications are already pending
-    final pending = await _plugin.pendingNotificationRequests();
-    if (pending.isNotEmpty) return; // Already scheduled
+    // One-time migration: reschedule all notifications with correct timezone.
+    final box = await Hive.openBox('kinwii_flags');
+    final tzFixed = box.get('tz_fix_v1', defaultValue: false) as bool;
 
-    // Schedule defaults: weekday 9am planning, 5:30pm reflection, Monday 9:15am review
-    await scheduleDailyPlanningReminder(const TimeOfDay(hour: 9, minute: 0));
-    await scheduleDailyReflectionReminder(const TimeOfDay(hour: 17, minute: 30));
-    await scheduleWeeklyReflectionReminder(const TimeOfDay(hour: 9, minute: 15));
+    final pending = await _plugin.pendingNotificationRequests();
+    if (pending.isNotEmpty && !tzFixed) {
+      // Cancel old (possibly wrong-timezone) notifications and reschedule.
+      await cancelAll();
+      await box.put('tz_fix_v1', true);
+    } else if (pending.isNotEmpty) {
+      return; // Already scheduled with correct timezone
+    } else {
+      await box.put('tz_fix_v1', true);
+    }
+
+    // Read user-saved times from Hive, falling back to defaults.
+    final settings = await Hive.openBox('kinwii_settings');
+    final dpEnabled = settings.get('dp_enabled', defaultValue: true) as bool;
+    final drEnabled = settings.get('dr_enabled', defaultValue: true) as bool;
+    final wrEnabled = settings.get('wr_enabled', defaultValue: true) as bool;
+
+    if (dpEnabled) {
+      await scheduleDailyPlanningReminder(TimeOfDay(
+        hour: settings.get('dp_hour', defaultValue: 9) as int,
+        minute: settings.get('dp_min', defaultValue: 0) as int,
+      ));
+    }
+    if (drEnabled) {
+      await scheduleDailyReflectionReminder(TimeOfDay(
+        hour: settings.get('dr_hour', defaultValue: 17) as int,
+        minute: settings.get('dr_min', defaultValue: 30) as int,
+      ));
+    }
+    if (wrEnabled) {
+      await scheduleWeeklyReflectionReminder(TimeOfDay(
+        hour: settings.get('wr_hour', defaultValue: 9) as int,
+        minute: settings.get('wr_min', defaultValue: 15) as int,
+      ));
+    }
   }
 
   Future<void> requestPermissions() async {
