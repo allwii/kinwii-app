@@ -281,7 +281,7 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () {
                     final uri = Platform.isIOS
                         ? Uri.parse(
-                            'https://apps.apple.com/app/id6744227498?action=write-review')
+                            'https://apps.apple.com/us/app/kinwii-focus-goal-planner/id6762843003?action=write-review')
                         : Uri.parse(
                             'https://play.google.com/store/apps/details?id=com.allvii.kinwii');
                     launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -294,7 +294,7 @@ class SettingsScreen extends ConsumerWidget {
                     SharePlus.instance.share(
                       ShareParams(
                         text:
-                            'Check out Kinwii — a calm, AI-powered planner that helps you focus on what matters.\nhttps://apps.apple.com/app/id6744227498',
+                            'Check out Kinwii — a calm, AI-powered planner that helps you focus on what matters.\nhttps://apps.apple.com/us/app/kinwii-focus-goal-planner/id6762843003',
                       ),
                     );
                   },
