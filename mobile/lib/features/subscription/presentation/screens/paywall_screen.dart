@@ -447,7 +447,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                   const SizedBox(height: 16),
                   Center(
                     child: Text(
-                      'Your free trial has ended. Subscribe to keep using Kinwii.',
+                      'Your trial has ended. Subscribe to keep using Kinwii.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppColors.contentSecondary,

@@ -92,7 +92,7 @@ class AccountScreen extends ConsumerWidget {
           // Account actions
           _AccountCard(
             children: [
-              if (hasEmail)
+              if (hasEmail) ...[
                 _AccountRow(
                   icon: Icons.person_outline,
                   label: 'Edit name',
@@ -113,8 +113,27 @@ class AccountScreen extends ConsumerWidget {
                       ),
                     );
                   },
-                )
-              else
+                ),
+                _AccountRow(
+                  icon: Icons.lock_outline,
+                  label: 'Change password',
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      useRootNavigator: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(24)),
+                      ),
+                      builder: (_) => _ChangePasswordModal(
+                        api: ref.read(apiServiceProvider),
+                      ),
+                    );
+                  },
+                ),
+              ] else
                 _AccountRow(
                   icon: Icons.person_add_outlined,
                   label: 'Create account',
@@ -299,6 +318,195 @@ class _AccountRow extends StatelessWidget {
                   size: 20, color: AppColors.contentTertiary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Change password modal
+// ---------------------------------------------------------------------------
+
+class _ChangePasswordModal extends StatefulWidget {
+  const _ChangePasswordModal({required this.api});
+  final dynamic api;
+
+  @override
+  State<_ChangePasswordModal> createState() => _ChangePasswordModalState();
+}
+
+class _ChangePasswordModalState extends State<_ChangePasswordModal> {
+  final _currentCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _loading = false;
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  String? _error;
+  String? _success;
+
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final current = _currentCtrl.text;
+    final newPw = _newCtrl.text;
+    final confirm = _confirmCtrl.text;
+
+    if (current.isEmpty) {
+      setState(() => _error = 'Please enter your current password.');
+      return;
+    }
+    if (newPw.length < 8) {
+      setState(() => _error = 'New password must be at least 8 characters.');
+      return;
+    }
+    if (newPw != confirm) {
+      setState(() => _error = 'New passwords do not match.');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      _success = null;
+    });
+
+    try {
+      await widget.api.post('/auth/change-password', data: {
+        'current_password': current,
+        'new_password': newPw,
+      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _success = 'Password updated!';
+        });
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        final is401 = e.toString().contains('401');
+        setState(() {
+          _loading = false;
+          _error = is401
+              ? 'Current password is incorrect.'
+              : 'Could not update password. Please try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomPadding),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Change password',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.content,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _currentCtrl,
+            decoration: InputDecoration(
+              labelText: 'Current password',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureCurrent
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: AppColors.contentTertiary,
+                ),
+                onPressed: () =>
+                    setState(() => _obscureCurrent = !_obscureCurrent),
+              ),
+            ),
+            obscureText: _obscureCurrent,
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _newCtrl,
+            decoration: InputDecoration(
+              labelText: 'New password',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureNew
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: AppColors.contentTertiary,
+                ),
+                onPressed: () => setState(() => _obscureNew = !_obscureNew),
+              ),
+            ),
+            obscureText: _obscureNew,
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _confirmCtrl,
+            decoration: InputDecoration(
+              labelText: 'Confirm new password',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureConfirm
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: AppColors.contentTertiary,
+                ),
+                onPressed: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+            ),
+            obscureText: _obscureConfirm,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(_error!,
+                style:
+                    const TextStyle(color: Color(0xFFDC2626), fontSize: 13)),
+          ],
+          if (_success != null) ...[
+            const SizedBox(height: 10),
+            Text(_success!,
+                style: TextStyle(color: AppColors.kiwi600, fontSize: 13)),
+          ],
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Update password'),
+            ),
+          ),
+        ],
       ),
     );
   }

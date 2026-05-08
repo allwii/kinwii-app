@@ -22,6 +22,7 @@ from app.schemas.user import (
     ForgotPasswordRequest,
     GoogleSignInRequest,
     LinkEmailRequest,
+    ChangePasswordRequest,
     MessageResponse,
     ResetPasswordRequest,
     TokenResponse,
@@ -161,6 +162,21 @@ async def update_me(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not current_user.hashed_password:
+        raise HTTPException(status_code=400, detail="Account uses social login.")
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+    current_user.hashed_password = hash_password(body.new_password)
+    db.commit()
+    return MessageResponse(message="Password updated.")
 
 
 RESET_CODE_EXPIRY_MINUTES = 10
