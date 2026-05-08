@@ -15,6 +15,8 @@ class GoalCreate(BaseModel):
 class GoalUpdate(BaseModel):
     title: str | None = Field(None, max_length=200)
     why: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
     progress_percent: int | None = Field(None, ge=0, le=100)
     role_id: UUID | None = None
 

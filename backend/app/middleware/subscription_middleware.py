@@ -13,15 +13,14 @@ def _is_pro(user: User) -> bool:
     """Check if a user currently has Pro access (active subscription or trial)."""
     now = datetime.now(timezone.utc)
 
-    # Active paid subscription
+    # Active paid subscription (includes cancelled but not yet expired)
     if (
-        user.subscription_tier == SubscriptionTier.pro
-        and user.subscription_expires_at
+        user.subscription_expires_at
         and user.subscription_expires_at > now
     ):
         return True
 
-    # Active trial (pro tier + trial not expired)
+    # Active trial (pro tier + trial not expired + no paid subscription)
     if (
         user.subscription_tier == SubscriptionTier.pro
         and user.trial_end_date
@@ -34,12 +33,14 @@ def _is_pro(user: User) -> bool:
 
 
 def _is_trial_expired(user: User) -> bool:
-    """Trial has expired and user has no paid subscription."""
+    """Trial has expired and user has no active paid subscription."""
     now = datetime.now(timezone.utc)
+    # Not expired if user has an active (or cancelled-but-not-yet-expired) subscription
+    if user.subscription_expires_at and user.subscription_expires_at > now:
+        return False
     return (
         user.trial_end_date is not None
         and user.trial_end_date <= now
-        and not user.subscription_expires_at
     )
 
 

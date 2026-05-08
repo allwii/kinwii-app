@@ -188,28 +188,7 @@ class GoalsScreen extends ConsumerWidget {
     final sub = ref.read(subscriptionProvider);
     final goals = ref.read(_goalsProvider).valueOrNull ?? [];
     if (!sub.isPro && goals.isNotEmpty) {
-      showDialog(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Goal limit reached'),
-          content: const Text(
-            'Free accounts are limited to 1 goal. Upgrade to Pro for unlimited goals.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Not now'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                context.push('/pro');
-              },
-              child: const Text('Upgrade'),
-            ),
-          ],
-        ),
-      );
+      context.push('/pro');
       return;
     }
     showModalBottomSheet(

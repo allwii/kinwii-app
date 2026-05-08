@@ -92,10 +92,23 @@ async def register(body: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered",
         )
+
+    # If device_id provided, upgrade the existing anonymous account
+    if body.device_id:
+        anon = db.query(User).filter(User.device_id == body.device_id).first()
+        if anon:
+            anon.email = email
+            anon.hashed_password = hash_password(body.password)
+            anon.is_anonymous = False
+            db.commit()
+            db.refresh(anon)
+            return TokenResponse(access_token=create_access_token(anon.id))
+
     now = datetime.now(timezone.utc)
     user = User(
         email=email,
         hashed_password=hash_password(body.password),
+        device_id=body.device_id,
         subscription_tier=SubscriptionTier.pro,
         trial_start_date=now,
         trial_end_date=now + timedelta(days=TRIAL_DAYS),

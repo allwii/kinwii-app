@@ -102,10 +102,21 @@ async def revenuecat_webhook(
             # Some events may not include expiration — still mark as Pro
             logger.warning("RevenueCat webhook: no expiration_at_ms for %s event", event_type)
 
-    elif event_type in ("CANCELLATION", "EXPIRATION"):
+    elif event_type == "CANCELLATION":
+        # User cancelled but has paid until end of billing period.
+        # Keep subscription_expires_at so they retain Pro access until then.
+        # RevenueCat will send EXPIRATION when the period actually ends.
+        user.subscription_tier = SubscriptionTier.free
+        logger.info(
+            "User %s cancelled, Pro access until %s",
+            app_user_id, user.subscription_expires_at,
+        )
+
+    elif event_type == "EXPIRATION":
+        # Subscription period has actually ended — revoke access.
         user.subscription_tier = SubscriptionTier.free
         user.subscription_expires_at = None
-        logger.info("User %s downgraded to Free", app_user_id)
+        logger.info("User %s subscription expired, downgraded to Free", app_user_id)
 
     db.commit()
     return {"status": "ok"}

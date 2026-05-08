@@ -62,9 +62,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     try {
       final api = ref.read(apiServiceProvider);
       final auth = ref.read(authServiceProvider);
+      final deviceId = await auth.getOrCreateDeviceId();
       final resp = await api.post('/auth/register', data: {
         'email': email,
         'password': password,
+        'device_id': deviceId,
       });
       await auth.setToken(resp.data['access_token']);
 
