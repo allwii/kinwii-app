@@ -445,7 +445,7 @@ class _SubscriptionBanner extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Your free trial ends in ${sub.trialDaysRemaining} day${sub.trialDaysRemaining == 1 ? '' : 's'}',
+                        'Your trial ends in ${sub.trialDaysRemaining} day${sub.trialDaysRemaining == 1 ? '' : 's'}',
                         style:
                             Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: AppColors.contentSecondary,

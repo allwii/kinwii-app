@@ -1025,6 +1025,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                     setState(() {
                       _selectedGoalId = g.id;
                       _selectedGoalName = g.title;
+                      _error = null;
                     });
                     Navigator.of(context).pop();
                   },

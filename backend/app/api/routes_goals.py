@@ -31,7 +31,7 @@ async def list_goals(
         db.query(QuarterlyGoal)
         .options(joinedload(QuarterlyGoal.role))
         .filter(QuarterlyGoal.user_id == current_user.id)
-        .order_by(QuarterlyGoal.created_at.desc())
+        .order_by(QuarterlyGoal.end_date.asc(), QuarterlyGoal.start_date.asc())
         .all()
     )
     return [_goal_to_response(g) for g in goals]

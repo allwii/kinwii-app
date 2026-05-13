@@ -413,7 +413,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '${sub.trialDaysRemaining} days left on your free trial',
+                        '${sub.trialDaysRemaining} days left on your trial',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: AppColors.kiwi700,
                               fontWeight: FontWeight.w500,
