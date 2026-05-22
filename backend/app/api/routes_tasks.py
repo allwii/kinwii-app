@@ -19,20 +19,30 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 @router.get("", response_model=list[TaskResponse])
 async def list_tasks(
     date: date | None = Query(None),
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
     weekly_plan_id: UUID | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not date and not weekly_plan_id:
+    has_range = start_date is not None and end_date is not None
+    if not date and not weekly_plan_id and not has_range:
         raise HTTPException(
             status_code=400,
-            detail="Provide either 'date' or 'weekly_plan_id' query parameter",
+            detail=(
+                "Provide 'date', 'weekly_plan_id', "
+                "or both 'start_date' and 'end_date'"
+            ),
         )
     query = db.query(Task).filter(Task.user_id == current_user.id)
     if weekly_plan_id:
         query = query.filter(Task.weekly_plan_id == weekly_plan_id)
     if date:
         query = query.filter(Task.date == date)
+    if start_date:
+        query = query.filter(Task.date >= start_date)
+    if end_date:
+        query = query.filter(Task.date <= end_date)
     return query.order_by(Task.created_at).all()
 
 
@@ -193,8 +203,30 @@ async def auto_move_tasks(
     if not unfinished:
         return []
 
+    # If the move crosses a week boundary (e.g., Sun → Mon), the task's
+    # weekly_plan_id no longer matches the new week and the Week screen would
+    # not find it. Resolve the correct plan for the new date once and re-link.
+    def _monday_of(d: date) -> date:
+        return d - timedelta(days=d.weekday())
+
+    crossed_week = _monday_of(yesterday) != _monday_of(today)
+    new_plan_id = None
+    if crossed_week:
+        new_plan = (
+            db.query(WeeklyPlan)
+            .filter(
+                WeeklyPlan.user_id == current_user.id,
+                WeeklyPlan.week_start_date == _monday_of(today),
+            )
+            .first()
+        )
+        if new_plan is not None:
+            new_plan_id = new_plan.id
+
     for task in unfinished:
         task.date = today
+        if new_plan_id is not None:
+            task.weekly_plan_id = new_plan_id
     db.commit()
 
     for task in unfinished:

@@ -18,6 +18,7 @@ import '../../../../models/task.dart';
 import '../../../../models/weekly_plan.dart';
 import '../../../../services/providers.dart';
 import '../../../../services/review_service.dart';
+import '../../data/goal_tips.dart';
 import '../../../../main.dart';
 
 // ---------------------------------------------------------------------------
@@ -309,68 +310,7 @@ class _DailyFocusNotifier extends StateNotifier<AsyncValue<List<String>>> {
 // Daily execution tips
 // ---------------------------------------------------------------------------
 
-const _dailyTips = <({String emoji, String title, String body})>[
-  (
-    emoji: '🐸',
-    title: 'Eat the frog',
-    body: 'Do your hardest task first — your focus is strongest in the morning.',
-  ),
-  (
-    emoji: '🎯',
-    title: 'Rule of 3',
-    body: 'Pick 3 tasks that would make today a win. Focus on those.',
-  ),
-  (
-    emoji: '🧱',
-    title: 'Block your time',
-    body: 'Block 90 minutes for deep work. Protect it like a meeting.',
-  ),
-  (
-    emoji: '⏰',
-    title: 'Set a time',
-    body: 'Setting a specific time for a task doubles your follow-through.',
-  ),
-  (
-    emoji: '📦',
-    title: 'Batch similar tasks',
-    body: 'Group emails, messages, and admin into one block. Saves 40 min/day.',
-  ),
-  (
-    emoji: '⚡',
-    title: 'Match your energy',
-    body: 'Deep work when fresh. Routine tasks when tired.',
-  ),
-  (
-    emoji: '🔬',
-    title: 'One thing at a time',
-    body: 'Every context switch costs 23 min of refocus. Single-task for flow.',
-  ),
-  (
-    emoji: '📋',
-    title: 'Clear deliverables',
-    body: 'Every task should have an output. "Draft v1" beats "work on proposal".',
-  ),
-  (
-    emoji: '🌅',
-    title: 'Plan tonight',
-    body: 'Spend 5 min tonight planning tomorrow. Wake up with clarity.',
-  ),
-  (
-    emoji: '🛡️',
-    title: 'Protect mornings',
-    body: 'No meetings before 11am = 2 hours of deep work every day.',
-  ),
-  (
-    emoji: '💆',
-    title: 'Rest to recharge',
-    body: 'Your brain cycles in 90-min blocks. Take 10 min to recharge.',
-  ),
-  (
-    emoji: '✨',
-    title: 'Start small',
-    body: 'If a task feels overwhelming, commit to just 5 minutes. Momentum follows.',
-  ),
-];
+// Tip pools and goal categorization live in `../data/goal_tips.dart`.
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -502,11 +442,18 @@ class TodayScreen extends ConsumerWidget {
                 ),
                 data: (tasks) {
                   if (tasks.isEmpty) {
+                    final plan = weeklyPlanAsync.valueOrNull;
+                    final firstGoal = goals.isNotEmpty ? goals.first : null;
                     return SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: _EmptyTodayCard(
                           onAddTask: () => _showAddTaskSheet(context, ref),
+                          goalTitle: firstGoal?.title,
+                          onGenerateFromGoal: (firstGoal != null && plan != null)
+                              ? () => _generateStarterTasks(
+                                  context, ref, plan.id)
+                              : null,
                         ),
                       ),
                     );
@@ -618,6 +565,57 @@ class TodayScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// Calls the AI suggest-daily-focus endpoint and creates the top 3
+  /// suggestions as tasks for today. Returns true on success.
+  Future<bool> _generateStarterTasks(
+      BuildContext context, WidgetRef ref, String planId) async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final now = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd').format(now);
+      final resp = await api.post('/ai/suggest-daily-focus', data: {
+        'weekly_plan_id': planId,
+        'date': dateStr,
+      });
+      final suggestions =
+          (resp.data['suggestions'] as List?)?.cast<String>() ?? [];
+      var created = 0;
+      for (final s in suggestions.take(3)) {
+        final title = s.trim();
+        if (title.isEmpty) continue;
+        try {
+          await api.post('/tasks', data: {
+            'weekly_plan_id': planId,
+            'title': title,
+            'date': dateStr,
+            'energy_type': 'deep',
+          });
+          created++;
+        } catch (_) {}
+      }
+      ref.read(_todayTasksProvider.notifier).refresh();
+      if (created > 0 && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added $created task${created == 1 ? '' : 's'} for today'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return created > 0;
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Couldn't generate tasks. Try adding one manually."),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return false;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -673,18 +671,31 @@ class _TaskTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title
-                Text(
-                  task.title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: task.completed
-                            ? AppColors.contentTertiary
-                            : AppColors.content,
-                        fontWeight: task.completed ? FontWeight.w400 : FontWeight.w500,
-                        decoration: task.completed
-                            ? TextDecoration.lineThrough
-                            : null,
+                // Title (with 🪨 marker for big rocks)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (task.isBigRock) ...[
+                      const Text('🪨', style: TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: task.completed
+                                  ? AppColors.contentTertiary
+                                  : AppColors.content,
+                              fontWeight: task.completed
+                                  ? FontWeight.w400
+                                  : FontWeight.w500,
+                              decoration: task.completed
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
                       ),
+                    ),
+                  ],
                 ),
                 // Description
                 if (task.description != null &&
@@ -1395,10 +1406,35 @@ class _AddTaskToolbar extends StatelessWidget {
 // Empty Today card — welcoming first-visit guidance
 // ---------------------------------------------------------------------------
 
-class _EmptyTodayCard extends StatelessWidget {
-  const _EmptyTodayCard({required this.onAddTask});
+class _EmptyTodayCard extends StatefulWidget {
+  const _EmptyTodayCard({
+    required this.onAddTask,
+    this.goalTitle,
+    this.onGenerateFromGoal,
+  });
 
   final VoidCallback onAddTask;
+  final String? goalTitle;
+  // If provided, shows a "Generate 3 tasks from your goal" primary action
+  // that calls AI. Returns true on success so the card can hide itself.
+  final Future<bool> Function()? onGenerateFromGoal;
+
+  @override
+  State<_EmptyTodayCard> createState() => _EmptyTodayCardState();
+}
+
+class _EmptyTodayCardState extends State<_EmptyTodayCard> {
+  bool _generating = false;
+
+  Future<void> _handleGenerate() async {
+    if (widget.onGenerateFromGoal == null) return;
+    setState(() => _generating = true);
+    try {
+      await widget.onGenerateFromGoal!();
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1408,9 +1444,15 @@ class _EmptyTodayCard extends StatelessWidget {
         : hour < 17
             ? 'Good afternoon!'
             : 'Good evening!';
-    final subtitle = hour < 17
-        ? 'What\'s the one thing that would make today a win?'
-        : 'Plan something for tomorrow to start strong.';
+    final hasGoal =
+        widget.goalTitle != null && widget.goalTitle!.trim().isNotEmpty;
+    final canGenerate = hasGoal && widget.onGenerateFromGoal != null;
+
+    final subtitle = canGenerate
+        ? 'You set the goal "${widget.goalTitle}". Want 3 starter tasks for today?'
+        : hour < 17
+            ? "What's the one thing that would make today a win?"
+            : 'Plan something for tomorrow to start strong.';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1446,14 +1488,42 @@ class _EmptyTodayCard extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: onAddTask,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add your first task'),
+          if (canGenerate) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _generating ? null : _handleGenerate,
+                icon: _generating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.auto_awesome, size: 18),
+                label: Text(_generating
+                    ? 'Generating...'
+                    : 'Generate 3 tasks for today'),
+              ),
             ),
-          ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: _generating ? null : widget.onAddTask,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Or add manually'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.contentSecondary,
+              ),
+            ),
+          ] else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: widget.onAddTask,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add your first task'),
+              ),
+            ),
         ],
       ),
     );
@@ -1464,14 +1534,14 @@ class _EmptyTodayCard extends StatelessWidget {
 // Daily tip card — one tip per day, dismissible, persisted in Hive
 // ---------------------------------------------------------------------------
 
-class _DailyTipCard extends StatefulWidget {
+class _DailyTipCard extends ConsumerStatefulWidget {
   const _DailyTipCard();
 
   @override
-  State<_DailyTipCard> createState() => _DailyTipCardState();
+  ConsumerState<_DailyTipCard> createState() => _DailyTipCardState();
 }
 
-class _DailyTipCardState extends State<_DailyTipCard> {
+class _DailyTipCardState extends ConsumerState<_DailyTipCard> {
   bool _dismissed = false;
   bool _loaded = false;
   int _tipIndex = 0;
@@ -1480,14 +1550,22 @@ class _DailyTipCardState extends State<_DailyTipCard> {
   static String get _todayKey =>
       'daily_tip_dismissed_${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
 
+  List<Tip> get _tips {
+    final goals = ref.read(_goalsProvider).valueOrNull ?? [];
+    final firstGoal = goals.isNotEmpty ? goals.first.title : null;
+    return tipsForGoal(firstGoal);
+  }
+
   @override
   void initState() {
     super.initState();
-    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year)).inDays;
-    _tipIndex = dayOfYear % _dailyTips.length;
+    final tips = _tips;
+    final dayOfYear =
+        DateTime.now().difference(DateTime(DateTime.now().year)).inDays;
+    _tipIndex = dayOfYear % tips.length;
     _timer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted && !_dismissed) {
-        setState(() => _tipIndex = (_tipIndex + 1) % _dailyTips.length);
+        setState(() => _tipIndex = (_tipIndex + 1) % _tips.length);
       }
     });
     _loadStatus();
@@ -1521,7 +1599,10 @@ class _DailyTipCardState extends State<_DailyTipCard> {
   Widget build(BuildContext context) {
     if (!_loaded || _dismissed) return const SizedBox.shrink();
 
-    final tip = _dailyTips[_tipIndex];
+    final tips = _tips;
+    // Guard against the goal loading mid-session and shrinking the list.
+    final safeIndex = _tipIndex % tips.length;
+    final tip = tips[safeIndex];
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 500),

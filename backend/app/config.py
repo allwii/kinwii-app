@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID_WEB: str = ""
     APP_API_KEY: str = ""  # Shared secret for mobile app authentication
 
+    # Local-only paywall bypass — when true (and ENVIRONMENT != "production"),
+    # all users are treated as Pro. Safe-by-default off. Set in .env for
+    # simulator testing.
+    BYPASS_PAYWALL: bool = False
+
     model_config = {"env_file": ".env"}
 
 

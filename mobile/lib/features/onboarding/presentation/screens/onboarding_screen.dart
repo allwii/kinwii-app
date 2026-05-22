@@ -125,7 +125,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       await auth.setOnboardingSeen();
       await ref.read(subscriptionProvider.notifier).refresh();
       await ref.read(subscriptionProvider.notifier).identifyUser();
-      if (mounted) context.go('/today');
+      // First-time path: hand off to the weekly planning wizard. The wizard
+      // creates the user's first big rocks instead of silently auto-seeding.
+      // Falls back to Today if the user has no goal title.
+      if (mounted) {
+        final hasGoal = _goalCtrl.text.trim().isNotEmpty;
+        context.go(hasGoal ? '/week/plan?firstTime=1' : '/today');
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -157,11 +163,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       });
       final goalId = goalResp.data['id'] as String;
 
+      // Create the current weekly plan with a placeholder intent — the
+      // planning wizard (next screen) will replace it with the user's chosen
+      // intent and create the first big rocks.
       final monday = now.subtract(Duration(days: now.weekday - 1));
       await api.post('/week', data: {
         'quarter_id': goalId,
         'week_start_date': DateFormat('yyyy-MM-dd').format(monday),
-        'intent': 'Focus on: $title',
+        'intent': 'Plan your big rocks for the week',
       });
     } catch (_) {
       // Non-critical — user can set goals later

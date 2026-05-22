@@ -18,6 +18,7 @@ import '../features/subscription/presentation/screens/paywall_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/today/presentation/screens/today_screen.dart';
 import '../features/week/presentation/screens/week_screen.dart';
+import '../features/week/presentation/screens/weekly_plan_wizard_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authService = ref.read(authServiceProvider);
@@ -87,6 +88,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/reflect/review/:id',
         builder: (context, state) => WeeklyReviewScreen(
           weeklyPlanId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: '/week/plan',
+        builder: (context, state) => WeeklyPlanWizardScreen(
+          firstTime: state.uri.queryParameters['firstTime'] == '1',
+          initialStep:
+              int.tryParse(state.uri.queryParameters['step'] ?? '') ?? 0,
         ),
       ),
       ShellRoute(

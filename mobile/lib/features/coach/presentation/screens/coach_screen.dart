@@ -360,7 +360,9 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
           if (index == 0) {
             return _BriefingCard(
               briefing: briefing,
-              isPro: isPro,
+              // Use server-provided briefing.isPro so day-1 free users see the
+              // full briefing as a value teaser.
+              isPro: briefing.isPro,
               onChipTap: _sendPrompt,
             );
           }

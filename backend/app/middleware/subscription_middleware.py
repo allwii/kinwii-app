@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, status
 
+from app.config import settings
 from app.middleware.auth_middleware import get_current_user
 from app.models.user import SubscriptionTier, User
 
@@ -9,8 +10,16 @@ from app.models.user import SubscriptionTier, User
 TRIAL_DAYS = 5
 
 
+def _bypass_enabled() -> bool:
+    """Local-only paywall bypass for simulator testing. Never active in prod."""
+    return settings.BYPASS_PAYWALL and settings.ENVIRONMENT != "production"
+
+
 def _is_pro(user: User) -> bool:
     """Check if a user currently has Pro access (active subscription or trial)."""
+    if _bypass_enabled():
+        return True
+
     now = datetime.now(timezone.utc)
 
     # Active paid subscription (includes cancelled but not yet expired)
@@ -34,6 +43,9 @@ def _is_pro(user: User) -> bool:
 
 def _is_trial_expired(user: User) -> bool:
     """Trial has expired and user has no active paid subscription."""
+    if _bypass_enabled():
+        return False
+
     now = datetime.now(timezone.utc)
     # Not expired if user has an active (or cancelled-but-not-yet-expired) subscription
     if user.subscription_expires_at and user.subscription_expires_at > now:

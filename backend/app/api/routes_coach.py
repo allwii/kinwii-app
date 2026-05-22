@@ -97,7 +97,13 @@ async def get_daily_briefing(
     stripped so the client can render a paywall teaser.
     """
     today = date.today()
-    is_pro = _is_pro(current_user)
+    # Show full briefing to free users on their first day too — gives them a
+    # taste of the AI value before any paywall.
+    is_first_day = (
+        current_user.created_at is not None
+        and current_user.created_at.date() == today
+    )
+    is_pro = _is_pro(current_user) or is_first_day
 
     briefing = (
         db.query(CoachBriefing)

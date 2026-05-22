@@ -1,5 +1,12 @@
 enum EnergyType { deep, admin, creative, personal }
 
+/// A "big rock" (Covey, 7 Habits) is a high-priority weekly task tied to a
+/// specific goal. We identify them via a heuristic — no dedicated DB column.
+extension TaskBigRock on Task {
+  bool get isBigRock =>
+      quarterId != null && energyType == EnergyType.deep;
+}
+
 class Task {
   final String id;
   final String userId;
